@@ -98,7 +98,7 @@ export default function App() {
             currentPage: 1,
             rowsPerPage: 10,
             sortColumn: '',
-            selectedColumns: table.columns.slice(0, 2) // 默认选择前两列
+            selectedColumns: [] // 初始为空数组，需要用户主动选择
           }
         }), {})
       );
@@ -123,7 +123,7 @@ export default function App() {
 
   const handleExport = useCallback((tableName) => {
     if (!tableStates[tableName]?.selectedColumns?.length) {
-      setError('请先选择要导出的列');
+      setError('请先选择要导出的列（至少选择一列）');
       return;
     }
     const table = tables.find((t) => t.name === tableName);
