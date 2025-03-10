@@ -80,7 +80,7 @@ const [chartOption, setChartOption] = useState({
         ...acc,
         [table.name]: table.columns.reduce((cols, col) => ({
           ...cols,
-          [col]: true
+          [col]: false
         }), {})
       }), {});
 
@@ -98,10 +98,10 @@ const [chartOption, setChartOption] = useState({
   const [combinedData, setCombinedData] = useState([]);
 
   // 添加字段筛选输入框到表格头部
-  const renderTableHeader = (table) => (
+  const renderTableHeader = (table, visibleColumns) => (
     <TableHead>
       <TableRow>
-        {table.columns.map(col => (
+        {visibleColumns.map(col => (
           <TableCell key={col}>
             <TextField
               size="small"
@@ -141,15 +141,29 @@ const [chartOption, setChartOption] = useState({
   
 
   const handleColumnToggle = (tableName, column) => {
-    if (!tables.some(t => t.name === tableName && t.columns.includes(column))) return;
-    
     setSelectedColumns(prev => ({
       ...prev,
       [tableName]: {
         ...prev[tableName],
-        [column]: !prev[tableName]?.[column]
+        [column]: !(prev[tableName]?.[column] ?? false)
       }
     }));
+    
+    // 清除已隐藏列的筛选值
+    setFilters(prev => ({
+      ...prev,
+      [tableName]: Object.fromEntries(
+        Object.entries(prev[tableName] || {})
+          .filter(([col]) => prev[tableName]?.[col])
+      )
+    }));
+    console.log('Column toggle:', tableName, column, {
+      ...selectedColumns,
+      [tableName]: {
+        ...selectedColumns[tableName],
+        [column]: !selectedColumns[tableName]?.[column]
+      }
+    });
   };
       
   
@@ -164,19 +178,9 @@ const [chartOption, setChartOption] = useState({
   const renderTable = (table) => {
     const state = pagination[table.name] || {};
     const visibleColumns = table.columns.filter(col => !!selectedColumns[table.name]?.[col]);
-  
-    // 修复复选框状态绑定
-    {visibleColumns.map(col => (
-      <FormControlLabel
-        control={
-          <Checkbox
-            checked={!!selectedColumns[table.name]?.[col]}
-            onChange={() => handleColumnToggle(table.name, col)}
-          />
-        }
-      />
-    ))}
-  
+
+    // 删除错误位置的visibleColumns遍历逻辑
+
     const filteredData = table.data.filter(row => 
       visibleColumns.every(col => {
         const colIndex = table.columns.indexOf(col);
@@ -198,7 +202,7 @@ const [chartOption, setChartOption] = useState({
               key={col}
               control={
                 <Checkbox
-                  checked={selectedColumns[table.name]?.[col] ?? false}
+                  checked={!!selectedColumns[table.name]?.[col]}
                   onChange={() => handleColumnToggle(table.name, col)}
                 />
               }
@@ -206,18 +210,21 @@ const [chartOption, setChartOption] = useState({
             />
           ))}
         </div>
-  
+
         <TableContainer component={Paper}>
           <Table>
-            {renderTableHeader(table)}
+            {renderTableHeader(table, visibleColumns)}
             <TableBody>
-              {paginatedData.map((row, i) => (
-                <TableRow key={i}>
-                  {table.columns
-                    .filter((_, index) => selectedColumns[table.name]?.[table.columns[index]])
-                    .map((col, index) => (
-                      <TableCell key={index}>{row[index]}</TableCell>
-                    ))}
+              {paginatedData.map((row, rowIndex) => (
+                <TableRow key={rowIndex}>
+                  {visibleColumns.map(col => {
+                    const colIndex = table.columns.indexOf(col);
+                    return (
+                      <TableCell key={colIndex}>
+                        {String(row[colIndex])}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))}
             </TableBody>
