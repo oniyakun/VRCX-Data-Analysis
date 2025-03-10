@@ -154,29 +154,29 @@ const [chartOption, setChartOption] = useState({
   
 
   const handleColumnToggle = (tableName, column) => {
-    setSelectedColumns(prev => ({
-      ...prev,
-      [tableName]: {
-        ...prev[tableName],
-        [column]: !(prev[tableName]?.[column] ?? false)
-      }
-    }));
+    setSelectedColumns(prev => ({ 
+      ...prev, 
+      [tableName]: { 
+        ...prev[tableName], 
+        [column]: !(prev[tableName]?.[column] ?? false) 
+      } 
+    })); 
     
-    // 清除已隐藏列的筛选值
-    setFilters(prev => ({
-      ...prev,
-      [tableName]: Object.fromEntries(
-        Object.entries(prev[tableName] || {})
-          .filter(([col]) => prev[tableName]?.[col])
-      )
-    }));
-    console.log('Column toggle:', tableName, column, {
-      ...selectedColumns,
-      [tableName]: {
-        ...selectedColumns[tableName],
-        [column]: !selectedColumns[tableName]?.[column]
+    // 清除已隐藏列的筛选值，同时不影响其他列的筛选状态
+    setFilters(prev => {
+      const newFilters = { ...prev };
+      if (newFilters[tableName]) {
+        delete newFilters[tableName][column];
       }
+      return newFilters;
     });
+    console.log('Column toggle:', tableName, column, { 
+      ...selectedColumns, 
+      [tableName]: { 
+        ...selectedColumns[tableName], 
+        [column]: !selectedColumns[tableName]?.[column] 
+      } 
+    }); 
   };
       
   
@@ -280,10 +280,50 @@ const handlePageChange = (tableName, newPage) => {
   }));
 };
 
+  const saveFilteredDataAsJSON = useCallback(() => {
+    // 重新计算筛选后的数据
+    const updatedFilters = filters;
+    tables.forEach(table => {
+      const state = pagination[table.name] || {};
+      const visibleColumns = table.columns.filter(col => !!selectedColumns[table.name]?.[col]);
+      if (visibleColumns.length === 0) return; // 只处理有选中列的表
+      const filteredData = table.data.filter(row => 
+        visibleColumns.every(col => {
+          const filterValues = (updatedFilters[table.name]?.[col] || []);
+          return filterValues.length === 0 || 
+            filterValues.some(f => 
+              String(row[table.columns.indexOf(col)]).toLowerCase().includes(String(f).toLowerCase())
+            );
+        })
+      );
+      const startIndex = (state.page - 1) * state.rowsPerPage;
+      const paginatedData = filteredData; // 保存所有筛选后的数据
+      // 按第一列排序
+      paginatedData.sort((a, b) => {
+        const firstColumnIndex = table.columns.indexOf(visibleColumns[0]);
+        return String(a[firstColumnIndex]).localeCompare(String(b[firstColumnIndex]));
+      });
+      const selectedData = paginatedData.map(row => {
+        return visibleColumns.reduce((acc, col) => {
+          const colIndex = table.columns.indexOf(col);
+          acc[col] = row[colIndex];
+          return acc;
+        }, {});
+      });
+      const jsonData = JSON.stringify(selectedData, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${table.name}_filtered.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }, [tables, filters, pagination, selectedColumns]);
+
   return (
     <div style={{ padding: '20px' }}>
       <h1>高级数据分析</h1>
-      
       <Button
         variant="contained"
         component="label"
@@ -298,10 +338,15 @@ const handlePageChange = (tableName, newPage) => {
           onChange={handleUpload}
         />
       </Button>
-
+      <Button
+        variant="contained"
+        onClick={saveFilteredDataAsJSON}
+        sx={{ marginBottom: '20px', marginLeft: '20px' }}
+      >
+        保存筛选数据为JSON
+      </Button>
       {loading && <CircularProgress />}
       {error && <Alert severity="error">{error}</Alert>}
-
       <div style={{ 
           height: '500px',
           marginTop: '40px',
@@ -312,7 +357,7 @@ const handlePageChange = (tableName, newPage) => {
         }}>
           <ReactECharts option={chartOption} style={{ height: '100%' }} />
         </div>
-{tables.map(renderTable)}
+      {tables.map(renderTable)}
     </div>
   );
 }
