@@ -13,6 +13,7 @@ import {
   Alert,
   Checkbox,
   FormControlLabel,
+  Autocomplete,
   TextField,
   Select,
   MenuItem,
@@ -26,7 +27,7 @@ import ReactECharts from 'echarts-for-react';
 
 export default function AnalysisPage() {
   const [tables, setTables] = useState([]);
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState({}); // 结构变为 { [tableName]: { [column]: string[] } }
   const [selectedColumns, setSelectedColumns] = useState({});
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(false);
@@ -103,18 +104,27 @@ const [chartOption, setChartOption] = useState({
       <TableRow>
         {visibleColumns.map(col => (
           <TableCell key={col}>
-            <TextField
+            <Autocomplete
+              multiple
+              freeSolo
+              options={[]}
               size="small"
-              label="筛选"
-              variant="outlined"
-              onChange={(e) => setFilters(prev => ({
+              sx={{ width: 180 }}
+              onChange={(_, value) => setFilters(prev => ({
                 ...prev,
                 [table.name]: {
                   ...prev[table.name],
-                  [col]: e.target.value
+                  [col]: value
                 }
               }))}
-              sx={{ width: 120 }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="多条件筛选"
+                  variant="outlined"
+                  onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
+                />
+              )}
             />
           </TableCell>
         ))}
@@ -127,9 +137,12 @@ const [chartOption, setChartOption] = useState({
     const filtered = tables.flatMap(table => {
       const tableFilters = filters[table.name] || {};
       return table.data.filter(row => 
-        table.columns.every((col, index) => {
-          const filterValue = (tableFilters[col] || '').toLowerCase();
-          return !filterValue || String(row[index]).toLowerCase().includes(filterValue);
+        table.columns.every(col => {
+          const filterValues = (filters[table.name]?.[col] || []);
+          return filterValues.length === 0 || 
+            filterValues.some(f => 
+              String(row[table.columns.indexOf(col)]).toLowerCase().includes(String(f).toLowerCase())
+            );
         })
       );
     });
@@ -183,11 +196,27 @@ const [chartOption, setChartOption] = useState({
 
     const filteredData = table.data.filter(row => 
       visibleColumns.every(col => {
-        const colIndex = table.columns.indexOf(col);
-        const filterValue = (filters[table.name]?.[col] || '').toLowerCase();
-        return !filterValue || String(row[colIndex]).toLowerCase().includes(filterValue);
+        const filterValues = (filters[table.name]?.[col] || []);
+        return filterValues.length === 0 || 
+          filterValues.some(f => 
+            String(row[table.columns.indexOf(col)]).toLowerCase().includes(String(f).toLowerCase())
+          );
       })
     );
+
+    // 新增排序逻辑：按当前筛选列内容分组排序
+    const activeFilters = Object.keys(filters[table.name] || {});
+    if (activeFilters.length > 0) {
+      filteredData.sort((a, b) => {
+        for (const col of activeFilters) {
+          const aVal = String(a[table.columns.indexOf(col)]).toLowerCase();
+          const bVal = String(b[table.columns.indexOf(col)]).toLowerCase();
+          const compareResult = aVal.localeCompare(bVal);
+          if (compareResult !== 0) return compareResult;
+        }
+        return 0;
+      });
+    }
   
     const startIndex = (state.page - 1) * state.rowsPerPage;
     const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
