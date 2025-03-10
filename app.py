@@ -23,7 +23,9 @@ def upload_file():
     conn = None
     try:
         # 使用with语句确保临时文件自动清理
-        with tempfile.NamedTemporaryFile(suffix='.sqlite3', delete=False) as tmp:
+        temp_dir = os.path.join(os.path.dirname(__file__), 'temp')
+        os.makedirs(temp_dir, exist_ok=True)
+        with tempfile.NamedTemporaryFile(suffix='.sqlite3', dir=temp_dir, delete=False) as tmp:
             file.save(tmp.name)
             tmp.close()
             os.environ['SQLITE_TMPDIR'] = os.path.dirname(tmp.name)
