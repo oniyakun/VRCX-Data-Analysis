@@ -194,7 +194,43 @@ function App() {
                     const columnIndex = table.columns.indexOf(tableStates[table.name]?.sortColumn || '');
                     
                     if (columnIndex >= 0) {
-                      sortedData.sort((a, b) => a[columnIndex] > b[columnIndex] ? 1 : -1);
+                      sortedData.sort((a, b) => {
+                        const valA = a[columnIndex];
+                        const valB = b[columnIndex];
+                        
+                        // 处理空值（统一处理undefined和null）
+                        if (valA == null) return valB == null ? 0 : 1;
+                        if (valB == null) return -1;
+
+                        // 调试日志
+                        console.log('比较值:', {
+                          valA: typeof valA,
+                          valB: typeof valB,
+                          column: table.columns[columnIndex]
+                        });
+
+                        // 增强类型检测：优先检测ISO日期格式
+                        const dateA = new Date(valA);
+                        const dateB = new Date(valB);
+                        if (!isNaN(dateA) && !isNaN(dateB)) {
+                          return dateA - dateB;
+                        }
+
+                        // 增强数字检测（处理千分位数字和百分比）
+                        const numA = Number(String(valA).replace(/[^0-9.-]/g, ''));
+                        const numB = Number(String(valB).replace(/[^0-9.-]/g, ''));
+                        if (!isNaN(numA) && !isNaN(numB)) {
+                          console.log('按数字比较:', numA, numB);
+                          return numA - numB;
+                        }
+
+                        // 增强字符串比较（处理空字符串）
+                        console.log('按字符串比较:', valA, valB);
+                        return String(valA).localeCompare(String(valB), 'zh', {
+                          numeric: true,
+                          sensitivity: 'base'
+                        });
+                      });
                     }
 
                     const slicedData = sortedData
@@ -202,6 +238,14 @@ function App() {
                         (tableStates[table.name]?.currentPage - 1) * (tableStates[table.name]?.rowsPerPage || 10),
                         (tableStates[table.name]?.currentPage || 1) * (tableStates[table.name]?.rowsPerPage || 10)
                       );
+
+                    console.log('当前页数据:', {
+                      page: tableStates[table.name]?.currentPage,
+                      pageSize: tableStates[table.name]?.rowsPerPage,
+                      total: sortedData.length,
+                      firstItem: slicedData[0],
+                      lastItem: slicedData[slicedData.length-1]
+                    });
     
                     console.log('当前分页参数:', {
                       table: table.name,
