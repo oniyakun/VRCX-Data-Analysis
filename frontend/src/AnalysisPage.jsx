@@ -17,8 +17,6 @@ import {
   Pagination,
   CircularProgress,
   Alert,
-  Checkbox,
-  FormControlLabel,
   Autocomplete,
   TextField,
 } from '@mui/material';
@@ -32,7 +30,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 export default function AnalysisPage() {
-  // 状态定义保持不变
+  // 状态定义
   const [tables, setTables] = useState([]);
   const [filters, setFilters] = useState({});
   const [selectedColumns, setSelectedColumns] = useState({});
@@ -56,8 +54,78 @@ export default function AnalysisPage() {
 
   const CHATGPT_CONFIG = {
     API_KEY: '',
-    ENDPOINT: 'http://localhost:11435/v1/chat/completions',
+    ENDPOINT: '',
   };
+
+  // 定义允许的 feed 类型
+  const allowedFeedTypes = ['feed_gps', 'feed_status', 'feed_bio', 'feed_avatar'];
+
+  // 获取表格显示名称并判断表名是否有效
+  const getDisplayName = (tableName) => {
+    for (const feedType of allowedFeedTypes) {
+      if (tableName.includes(feedType)) {
+        const usrPart = tableName.split(feedType)[0].replace(/_$/, ''); // 提取 "usrXXX" 部分
+        switch (feedType) {
+          case 'feed_gps':
+            return `${usrPart}的历史位置信息`;
+          case 'feed_status':
+            return `${usrPart}的历史状态信息`;
+          case 'feed_bio':
+            return `${usrPart}的历史简介信息`;
+          case 'feed_avatar':
+            return `${usrPart}的历史模型信息`;
+          default:
+            return null;
+        }
+      }
+    }
+    return null;
+  };
+
+  // 处理文件上传
+  const handleUpload = useCallback(async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post('http://localhost:5000/upload', formData);
+
+      // 过滤表格，仅保留符合表名模式的表格
+      const validTables = response.data.tables_metadata.filter(
+        (t) => Array.isArray(t?.columns) && Array.isArray(t?.data) && getDisplayName(t.name) !== null
+      );
+      if (validTables.length === 0) throw new Error('未找到有效表格数据');
+
+      setTables(validTables);
+      setPagination(
+        validTables.reduce(
+          (acc, table) => ({
+            ...acc,
+            [table.name]: { page: 1, rowsPerPage: 10 },
+          }),
+          {}
+        )
+      );
+      setSelectedColumns(
+        validTables.reduce(
+          (acc, table) => ({
+            ...acc,
+            [table.name]: table.columns.reduce((cols, col) => ({ ...cols, [col]: false }), {}),
+          }),
+          {}
+        )
+      );
+    } catch (err) {
+      setError(err.message);
+      setTables([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   // 获取合并后的筛选数据
   const getMergedFilteredData = useCallback(() => {
@@ -99,7 +167,7 @@ export default function AnalysisPage() {
       setApiResponse('');
       const mergedData = getMergedFilteredData();
       const payload = {
-        model: 'deepseek-r1:8b',
+        model: 'deepseek-r1',
         messages: [{ role: 'user', content: `${promptInput}\n${JSON.stringify(mergedData)}` }],
         stream: true,
       };
@@ -198,50 +266,6 @@ export default function AnalysisPage() {
       return { ...prev, [tableName]: rest };
     });
   };
-
-  // 处理文件上传
-  const handleUpload = useCallback(async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await axios.post('http://localhost:5000/upload', formData);
-
-      const validTables = response.data.tables_metadata.filter(
-        (t) => Array.isArray(t?.columns) && Array.isArray(t?.data)
-      );
-      if (validTables.length === 0) throw new Error('未找到有效表格数据');
-
-      setTables(validTables);
-      setPagination(
-        validTables.reduce(
-          (acc, table) => ({
-            ...acc,
-            [table.name]: { page: 1, rowsPerPage: 10 },
-          }),
-          {}
-        )
-      );
-      setSelectedColumns(
-        validTables.reduce(
-          (acc, table) => ({
-            ...acc,
-            [table.name]: table.columns.reduce((cols, col) => ({ ...cols, [col]: false }), {}),
-          }),
-          {}
-        )
-      );
-    } catch (err) {
-      setError(err.message);
-      setTables([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
 
   // 保存筛选后的数据为 JSON
   const saveFilteredDataAsJSON = useCallback(() => {
@@ -344,7 +368,7 @@ export default function AnalysisPage() {
           >
             <CardContent>
               <Typography variant="h6" sx={{ mb: 2 }}>
-                {table.name}
+                {getDisplayName(table.name)}
               </Typography>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', mb: 2 }}>
                 {table.columns.map((col) => (
