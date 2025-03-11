@@ -1,0 +1,36 @@
+{
+  "name": "sqlite-analyzer",
+  "version": "1.0.0",
+  "main": "main.js",
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^35.0.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron:dev": "electron-vite dev",
+    "electron:build": "cd frontend && npm run build && cd .. && electron-builder --win",
+    "electron:start": "electron ."
+  },
+  "build": {
+    "appId": "com.example.sqlite-analyzer",
+    "productName": "VRCX Data Analysis",
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "app.exe",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    }
+  }
+}

@@ -18,7 +18,7 @@
 - [ ] 自动化部署流程
 - [x] 任务结束后自动删除缓存文件
 - [x] 接入 DeepSeek API 支持
-- [ ] 增加设置页，允许用户自定义 API Endpoint、API Key 和模型
+- [x] 增加设置页，允许用户自定义 API Endpoint、API Key 和模型
 
 ## 📦 应用打包
 - [ ] 打包成 Electron 应用
