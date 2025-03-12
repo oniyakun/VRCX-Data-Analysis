@@ -20,6 +20,8 @@ function createWindow() {
     },
   });
 
+  mainWindow.setMenuBarVisibility(false);
+
   if (process.env.NODE_ENV === 'development') {
     mainWindow.loadURL('http://localhost:5173');
   } else {

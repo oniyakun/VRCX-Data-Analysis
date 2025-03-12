@@ -24,8 +24,8 @@
     ],
     "extraResources": [
       {
-        "from": "dist/app.exe",
-        "to": "dist/app.exe"
+        "from": "dist/app",
+        "to": "dist"
       },
       {
         "from": "frontend/dist",

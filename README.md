@@ -84,7 +84,7 @@ cd vrcx-analysis/frontend
 npm install -i
 cd ..
 pip install -r requirements.txt
-pyinstaller --onefile --noconsole --clean app.py
+pyinstaller --noconsole --clean app.py
 npm run dev
 ```
 
@@ -96,7 +96,7 @@ cd vrcx-analysis/frontend
 npm install -i
 cd ..
 pip install -r requirements.txt
-pyinstaller --onefile --noconsole --clean app.py
+pyinstaller --noconsole --clean app.py
 npm run build
 ```
 
