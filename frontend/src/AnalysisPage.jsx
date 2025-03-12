@@ -39,16 +39,17 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import html2canvas from 'html2canvas';
 import SettingsModal from './SettingsModal';
 
-// Dark theme configuration
-const darkTheme = createTheme({
+// 暗色主题配置
+const modernDarkTheme = createTheme({
   palette: {
     mode: 'dark',
     background: {
-      default: '#1e1e1e',
-      paper: '#2c2c2c',
+      default: '#2c2c2c',
+      paper: '#1e1e1e',
     },
     text: {
       primary: '#ffffff',
+      secondary: '#b0b0b0',
     },
     primary: {
       main: '#6abf4b',
@@ -59,20 +60,84 @@ const darkTheme = createTheme({
   },
   typography: {
     fontSize: 15,
-    fontFamily: [
-      '-apple-system',
-      'BlinkMacSystemFont',
-      '"Segoe UI"',
-      'Roboto',
-      '"Helvetica Neue"',
-      'Arial',
-      'sans-serif',
-    ].join(','),
+    fontFamily: ['Roboto', 'Helvetica', 'Arial', 'sans-serif'].join(','),
+  },
+  components: {
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backgroundColor: '#1e1e1e',
+          borderRadius: '16px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: '#1e1e1e',
+          borderRadius: '16px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+        },
+      },
+    },
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+          textTransform: 'none',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+          transition: 'transform 0.2s ease-in-out',
+          '&:hover': {
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+            transform: 'scale(1.05)',
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiOutlinedInput-root': {
+            borderRadius: '12px',
+            backgroundColor: '#2a2a2a',
+            transition: 'background-color 0.3s',
+            '&:hover': {
+              backgroundColor: '#333333',
+            },
+            '&.Mui-focused': {
+              backgroundColor: '#404040',
+            },
+          },
+        },
+      },
+    },
+    MuiTable: {
+      styleOverrides: {
+        root: {
+          borderRadius: '12px',
+          overflow: 'hidden',
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        head: {
+          backgroundColor: '#2a2a2a',
+          fontWeight: 'bold',
+        },
+        body: {
+          transition: 'background-color 0.2s',
+          '&:hover': {
+            backgroundColor: '#252525',
+          },
+        },
+      },
+    },
   },
 });
 
 export default function AnalysisPage() {
-  // 状态定义
   const [tables, setTables] = useState([]);
   const [filters, setFilters] = useState({});
   const [selectedColumns, setSelectedColumns] = useState({});
@@ -94,11 +159,8 @@ export default function AnalysisPage() {
   const [apiResponse, setApiResponse] = useState('');
   const navigate = useNavigate();
 
-  // 预设 prompt 下拉框相关状态
   const [presetPrompts, setPresetPrompts] = useState([]);
   const [selectedPreset, setSelectedPreset] = useState('');
-
-  // 设置面板状态及 API 配置
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiConfig, setApiConfig] = useState({
     endpoint: '',
@@ -106,17 +168,13 @@ export default function AnalysisPage() {
     model: '',
   });
 
-  // 分析结果区域引用（用于截图）
   const responseContainerRef = useRef(null);
-
-  // 用于管理图片数据和对话框显示
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
 
-  // 允许的 Feed 类型
   const allowedFeedTypes = ['feed_gps', 'feed_status', 'feed_bio', 'feed_avatar'];
 
-  // 组件挂载时加载 API 配置和预设 prompt
   useEffect(() => {
     const savedEndpoint = localStorage.getItem('apiEndpoint') || '';
     const savedApiKey = localStorage.getItem('apiKey') || '';
@@ -125,15 +183,13 @@ export default function AnalysisPage() {
     if (!savedEndpoint || !savedApiKey || !savedModel) {
       setSettingsOpen(true);
     }
-    // 读取本地配置文件中的预设 prompt
-    window.electron.ipcRenderer.invoke('read-config').then((result) => {
+    window.electronAPI.ipcRenderer.invoke('read-config').then((result) => {
       if (result.success && result.prompts && result.prompts.length > 0) {
         setPresetPrompts(result.prompts);
       }
     });
   }, []);
 
-  // 根据表名获取显示名称
   const getDisplayName = (tableName) => {
     for (const feedType of allowedFeedTypes) {
       if (tableName.includes(feedType)) {
@@ -155,7 +211,6 @@ export default function AnalysisPage() {
     return null;
   };
 
-  // 手动上传文件处理函数
   const handleUpload = useCallback(async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -199,15 +254,11 @@ export default function AnalysisPage() {
     }
   }, []);
 
-  /**
-   * 自动加载 VRCX 数据库：
-   * 通过调用主进程 IPC 方法寻找并上传位于 AppData\Roaming\VRCX 的 VRCX.sqlite3
-   */
   const handleAutoLoadVrcx = async () => {
     setLoading(true);
     setError(null);
     try {
-      const { success, data, message } = await window.electron.ipcRenderer.invoke('auto-load-vrcx-db');
+      const { success, data, message } = await window.electronAPI.ipcRenderer.invoke('auto-load-vrcx-db');
       if (!success) {
         setError(message || '自动加载失败');
         setLoading(false);
@@ -247,7 +298,6 @@ export default function AnalysisPage() {
     }
   };
 
-  // 合并过滤数据
   const getMergedFilteredData = useCallback(() => {
     const mergedData = {};
     tables.forEach((table) => {
@@ -277,7 +327,6 @@ export default function AnalysisPage() {
     return mergedData;
   }, [tables, filters, selectedColumns]);
 
-  // 处理聊天分析请求
   const handleChatAnalysis = async () => {
     try {
       setLoading(true);
@@ -334,43 +383,39 @@ export default function AnalysisPage() {
     }
   };
 
-  // 自动滚动到响应区域底部
   useEffect(() => {
     if (responseContainerRef.current) {
       responseContainerRef.current.scrollTop = responseContainerRef.current.scrollHeight;
     }
   }, [apiResponse]);
 
-  // 保存分析结果为图片
-  const handleSaveAnalysisAsImage = async () => {
+  const handleSaveAnalysisAsImage = () => {
     if (!responseContainerRef.current) return;
-    try {
-      const originalOverflow = responseContainerRef.current.style.overflow;
-      const originalHeight = responseContainerRef.current.style.height;
-      responseContainerRef.current.style.overflow = 'visible';
-      const scrollHeight = responseContainerRef.current.scrollHeight;
-      const { width } = responseContainerRef.current.getBoundingClientRect();
-      responseContainerRef.current.style.height = `${scrollHeight}px`;
-      const canvas = await html2canvas(responseContainerRef.current, {
-        backgroundColor: '#2c2c2c',
-        scale: 2,
-        useCORS: true,
-        scrollX: 0,
-        scrollY: 0,
-        width,
-        height: scrollHeight,
-      });
-      responseContainerRef.current.style.overflow = originalOverflow;
-      responseContainerRef.current.style.height = originalHeight;
-      const dataUrl = canvas.toDataURL('image/png');
-      setImageDataUrl(dataUrl);
-      setDialogOpen(true);
-    } catch (error) {
-      console.error('Error saving analysis as image:', error);
-    }
+    setIsCapturing(true);
   };
 
-  // 下载图片
+  useEffect(() => {
+    if (isCapturing) {
+      const capture = async () => {
+        try {
+          const canvas = await html2canvas(responseContainerRef.current, {
+            backgroundColor: '#2c2c2c',
+            scale: 2,
+            useCORS: true,
+          });
+          const dataUrl = canvas.toDataURL('image/png');
+          setImageDataUrl(dataUrl);
+          setDialogOpen(true);
+        } catch (error) {
+          console.error('Error saving analysis as image:', error);
+        } finally {
+          setIsCapturing(false);
+        }
+      };
+      capture();
+    }
+  }, [isCapturing]);
+
   const handleDownloadImage = () => {
     if (!imageDataUrl) return;
     const link = document.createElement('a');
@@ -381,7 +426,20 @@ export default function AnalysisPage() {
     document.body.removeChild(link);
   };
 
-  // 渲染表头
+  const handleCopyToClipboard = async () => {
+    if (!imageDataUrl) return;
+    try {
+      const response = await window.electronAPI.ipcRenderer.invoke('copy-to-clipboard', imageDataUrl);
+      if (response.success) {
+      } else {
+        throw new Error(response.error);
+      }
+    } catch (error) {
+      console.error('复制失败:', error);
+      alert('复制失败，请重试');
+    }
+  };
+
   const renderTableHeader = (table, visibleColumns) => (
     <TableHead>
       <TableRow>
@@ -414,7 +472,6 @@ export default function AnalysisPage() {
     </TableHead>
   );
 
-  // 切换列显示与否
   const handleColumnToggle = (tableName, column) => {
     setSelectedColumns((prev) => {
       const tableSelected = prev[tableName] || {};
@@ -430,7 +487,6 @@ export default function AnalysisPage() {
     });
   };
 
-  // 保存筛选数据为 JSON 文件
   const saveFilteredDataAsJSON = useCallback(() => {
     tables.forEach((table) => {
       const tableSelectedColumns = selectedColumns[table.name] || {};
@@ -466,23 +522,37 @@ export default function AnalysisPage() {
   }, [tables, filters, selectedColumns]);
 
   return (
-    <ThemeProvider theme={darkTheme}>
+    <ThemeProvider theme={modernDarkTheme}>
       <CssBaseline />
-      {/* 注入自定义滚动条样式 */}
       <GlobalStyles
         styles={{
           '::-webkit-scrollbar': { width: '8px', height: '8px' },
-          '::-webkit-scrollbar-track': { background: '#2c2c2c' },
+          '::-webkit-scrollbar-track': { background: 'transparent' },
           '::-webkit-scrollbar-thumb': {
             backgroundColor: '#6abf4b',
             borderRadius: '10px',
-            border: '2px solid #2c2c2c',
+            border: '2px solid transparent',
+          },
+          body: {
+            backgroundColor: '#2c2c2c',
+          },
+          '.analysis-result': {
+            fontFamily: "'Roboto Mono', monospace", // 设置分析结果字体为 Roboto Mono
+            fontSize: '16px',                      // 字体大小
+            lineHeight: '1.8',                     // 行高提升可读性
           },
         }}
       />
-      <Container maxWidth="lg" sx={{ py: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {/* 始终显示工具栏及设置部分 */}
-        <Toolbar sx={{ justifyContent: 'space-between', mb: 3, px: 0 }}>
+      <Container maxWidth="lg" sx={{ py: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <Toolbar
+          sx={{
+            justifyContent: 'space-between',
+            mb: 4,
+            px: 0,
+            backgroundColor: '#2c2c2c',
+            borderRadius: '12px',
+          }}
+        >
           <Button variant="contained" component="label" startIcon={<Upload />} sx={{ borderRadius: 2 }}>
             上传 SQLite 文件
             <input type="file" hidden accept=".sqlite3" onChange={handleUpload} />
@@ -510,16 +580,14 @@ export default function AnalysisPage() {
           initialConfig={apiConfig}
         />
 
-        {/* 如果没有解析到数据库数据（tables为空），则显示“请上传数据文件”提示的图表区域 */}
         {tables.length === 0 && (
-          <Card sx={{ mb: 3, borderRadius: 3 }}>
+          <Card sx={{ mb: 4, borderRadius: 3 }}>
             <CardContent>
               <ReactECharts option={chartOption} style={{ height: '500px' }} />
             </CardContent>
           </Card>
         )}
 
-        {/* 当存在解析后的数据时显示数据表格 */}
         {tables.map((table) => {
           const state = pagination[table.name] || { page: 1, rowsPerPage: 10 };
           const tableSelectedColumns = selectedColumns[table.name] || {};
@@ -539,12 +607,12 @@ export default function AnalysisPage() {
           const startIndex = (state.page - 1) * state.rowsPerPage;
           const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
           return (
-            <Card key={table.name} sx={{ mb: 3, borderRadius: 3 }}>
+            <Card key={table.name} sx={{ mb: 4, borderRadius: 3 }}>
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>
+                <Typography variant="h6" sx={{ mb: 3 }}>
                   {getDisplayName(table.name)}
                 </Typography>
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: 16 }}>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: 24 }}>
                   {table.columns.map((col) => (
                     <Chip
                       key={col}
@@ -555,7 +623,7 @@ export default function AnalysisPage() {
                     />
                   ))}
                 </div>
-                <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
+                <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
                   <Table>
                     {renderTableHeader(table, visibleColumns)}
                     <TableBody>
@@ -578,17 +646,15 @@ export default function AnalysisPage() {
                       [table.name]: { ...prev[table.name], page },
                     }))
                   }
-                  sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}
+                  sx={{ mt: 3, display: 'flex', justifyContent: 'center' }}
                 />
               </CardContent>
             </Card>
           );
         })}
 
-        {/* Prompt 输入区及预设 prompt 下拉框 */}
-        <Card sx={{ mb: 3, borderRadius: 3 }}>
+        <Card sx={{ mb: 4, borderRadius: 3 }}>
           <CardContent>
-            {/* 预设 prompt 下拉框 */}
             <TextField
               select
               label="预设 prompt"
@@ -598,7 +664,7 @@ export default function AnalysisPage() {
                 setPromptInput(e.target.value);
               }}
               fullWidth
-              sx={{ mb: 2 }}
+              sx={{ mb: 3 }}
             >
               {presetPrompts.map((option, index) => (
                 <MenuItem key={index} value={option}>
@@ -615,7 +681,7 @@ export default function AnalysisPage() {
               onChange={(e) => setPromptInput(e.target.value)}
               placeholder="请输入您的分析需求..."
               variant="outlined"
-              sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+              sx={{ mb: 3 }}
             />
             <div style={{ display: 'flex', gap: 16 }}>
               <Button
@@ -640,23 +706,23 @@ export default function AnalysisPage() {
           </CardContent>
         </Card>
 
-        {/* 分析结果区域 */}
         {apiResponse && (
-          <Card sx={{ borderRadius: 3, mb: 3 }}>
+          <Card sx={{ borderRadius: 3, mb: 4 }}>
             <CardContent>
-              <Typography variant="h6" sx={{ mb: 2 }}>
+              <Typography variant="h6" sx={{ mb: 3 }}>
                 分析结果
               </Typography>
               <div
                 ref={responseContainerRef}
+                className="analysis-result" // 应用全局字体样式
                 style={{
-                  fontFamily: 'monospace',
-                  lineHeight: 1.6,
                   padding: '16px',
-                  backgroundColor: '#2c2c2c',
-                  borderRadius: '8px',
-                  maxHeight: '400px',
-                  overflowY: 'auto',
+                  backgroundColor: '#1e1e1e',
+                  borderRadius: '12px',
+                  maxHeight: isCapturing ? 'none' : '400px',
+                  height: isCapturing ? 'auto' : undefined,
+                  overflowY: isCapturing ? 'visible' : 'auto',
+                  boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, 0.2)',
                 }}
               >
                 {apiResponse.split(/(\<think\>[\s\S]*?\<\/think\>)/g).map((part, index) => {
@@ -665,9 +731,9 @@ export default function AnalysisPage() {
                       <div
                         key={index}
                         style={{
-                          backgroundColor: '#333',
+                          backgroundColor: '#2a2a2a',
                           padding: '12px',
-                          borderRadius: '4px',
+                          borderRadius: '8px',
                           margin: '12px 0',
                           fontStyle: 'italic',
                           color: '#ddd',
@@ -733,17 +799,17 @@ export default function AnalysisPage() {
           </Card>
         )}
 
-        {/* 分析结果图片对话框 */}
         <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="lg" fullWidth>
           <DialogTitle>分析结果图片</DialogTitle>
           <DialogContent>
             {imageDataUrl && (
-              <img src={imageDataUrl} alt="Analysis Result" style={{ maxWidth: '100%' }} />
+              <img src={imageDataUrl} alt="Analysis Result" style={{ maxWidth: '100%', borderRadius: '12px' }} />
             )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setDialogOpen(false)}>关闭</Button>
             <Button onClick={handleDownloadImage}>下载</Button>
+            <Button onClick={handleCopyToClipboard}>复制图片</Button>
           </DialogActions>
         </Dialog>
       </Container>

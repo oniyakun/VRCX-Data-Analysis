@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const axios = require('axios');
 const FormData = require('form-data');
+const { clipboard, nativeImage } = require('electron');
 
 let backendProcess;
 let mainWindow;
@@ -30,7 +31,11 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  backendProcess = spawn(path.join(process.resourcesPath, 'dist/app.exe'));
+  // 启动后端进程
+  const backendPath = process.env.NODE_ENV === 'development'
+    ? path.join(__dirname, 'dist/app/app.exe') // 开发环境路径
+    : path.join(process.resourcesPath, 'dist/app.exe'); // 打包后路径
+  backendProcess = spawn(backendPath);
 
   backendProcess.stdout.on('data', (data) => {
     console.log(`后端输出: ${data}`);
@@ -66,7 +71,9 @@ app.whenReady().then(() => {
   // 读取本地配置文件 config.ini 中的预设 prompt
   ipcMain.handle('read-config', async () => {
     try {
-      const configPath = path.join(__dirname, '../frontend/config.ini');
+      const configPath = process.env.NODE_ENV === 'development'
+        ? path.join(__dirname, 'config.ini') // 开发环境路径
+        : path.join(__dirname, '../frontend/config.ini'); // 打包后路径
       if (!fs.existsSync(configPath)) {
         return { success: false, message: '配置文件不存在' };
       }
@@ -89,6 +96,17 @@ app.whenReady().then(() => {
       return { success: true, prompts };
     } catch (err) {
       return { success: false, message: err.message };
+    }
+  });
+
+  // 处理复制到剪贴板请求
+  ipcMain.handle('copy-to-clipboard', async (event, dataUrl) => {
+    try {
+      const image = nativeImage.createFromDataURL(dataUrl);
+      clipboard.writeImage(image);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
     }
   });
 });
