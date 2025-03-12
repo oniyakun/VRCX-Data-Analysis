@@ -36,12 +36,12 @@
 - 支持所有符合 OpenAI API 标准的服务。
 - 配置方法：
   - 点击设置，填写 API Endpoint、API Key 和模型名。
-- 获取你的API，可以使用从[nuwaapi](https://api.nuwaapi.com/register?aff=p4T5)购买的API
+- 获取你的API，可以使用从 [nuwaapi](https://api.nuwaapi.com/register?aff=p4T5) 购买的API
 
 ### 示例：
 
 ```ini
-API Endpoint: https://api.openai.com/v1/chat/completions
+API Endpoint: https://api.nuwaapi.com/v1/chat/completions
 API Key: 你的API密钥
 Model: deepseek-r1
 ```
