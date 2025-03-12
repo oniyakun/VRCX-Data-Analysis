@@ -1,3 +1,5 @@
+![image](https://github.com/user-attachments/assets/dba04d38-c6bd-4f13-ab0c-d4f0aab1edec)
+
 # VRCX 用户数据分析工具
 
 ## 项目简介
