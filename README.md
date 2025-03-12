@@ -24,6 +24,11 @@
 
 ## 🚀 使用说明
 
+### 步骤 0：下载软件
+
+1. 从 [releases](https://github.com/oniyakun/VRCX-Data-Analysis/releases) 下载最新版本的软件。
+2. 解压软件，双击 `VRCX Data Analysis.exe` 运行。
+
 ### 步骤 1：配置 API
 
 打开软件后，请先配置你的 API 信息：
@@ -31,13 +36,14 @@
 - 支持所有符合 OpenAI API 标准的服务。
 - 配置方法：
   - 点击设置，填写 API Endpoint、API Key 和模型名。
+- 获取你的API，可以使用从nuwaapi.com购买的API
 
 ### 示例：
 
 ```ini
 API Endpoint: https://api.openai.com/v1/chat/completions
 API Key: 你的API密钥
-Model: gpt-3.5-turbo
+Model: deepseek-r1
 ```
 
 ---
