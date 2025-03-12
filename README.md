@@ -77,7 +77,7 @@ Model: gpt-3.5-turbo
 ### 本地开发环境搭建：
 
 ```bash
-git clone https://github.com/your-repo/vrcx-analysis.git
+git clone https://github.com/oniyakun/VRCX-Data-Analysis.git
 cd vrcx-analysis/frontend
 npm install
 cd ..
@@ -89,7 +89,7 @@ npm run dev
 ### 项目打包指南：
 
 ```bash
-git clone https://github.com/your-repo/vrcx-analysis.git
+git clone https://github.com/oniyakun/VRCX-Data-Analysis.git
 cd vrcx-analysis/frontend
 npm install
 cd ..
