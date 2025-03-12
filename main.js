@@ -66,7 +66,7 @@ app.whenReady().then(() => {
   // 读取本地配置文件 config.ini 中的预设 prompt
   ipcMain.handle('read-config', async () => {
     try {
-      const configPath = path.join(__dirname, 'config.ini');
+      const configPath = path.join(__dirname, 'frontend/config.ini');
       if (!fs.existsSync(configPath)) {
         return { success: false, message: '配置文件不存在' };
       }

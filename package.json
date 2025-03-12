@@ -1,6 +1,6 @@
 {
   "name": "vrcx-data-analyzer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "main.js",
   "devDependencies": {
     "concurrently": "^9.1.2",
@@ -30,6 +30,10 @@
       {
         "from": "frontend/dist",
         "to": "frontend"
+      },
+      {
+        "from": "config.ini",
+        "to": "frontend/config.ini"
       }
     ],
     "directories": {
