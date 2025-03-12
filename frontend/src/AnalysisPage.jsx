@@ -20,6 +20,11 @@ import {
   Autocomplete,
   TextField,
   CssBaseline,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  GlobalStyles,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { Upload } from '@mui/icons-material';
@@ -66,7 +71,7 @@ const darkTheme = createTheme({
 });
 
 export default function AnalysisPage() {
-  // State definitions
+  // 状态定义
   const [tables, setTables] = useState([]);
   const [filters, setFilters] = useState({});
   const [selectedColumns, setSelectedColumns] = useState({});
@@ -88,7 +93,7 @@ export default function AnalysisPage() {
   const [apiResponse, setApiResponse] = useState('');
   const navigate = useNavigate();
 
-  // Settings modal state and API configuration
+  // 设置面板状态及 API 配置
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiConfig, setApiConfig] = useState({
     endpoint: '',
@@ -96,24 +101,28 @@ export default function AnalysisPage() {
     model: '',
   });
 
-  // Reference for AI analysis result area (for screenshot)
+  // 分析结果区域引用（用于截图）
   const responseContainerRef = useRef(null);
 
-  // Allowed feed types
+  // 用于管理图片数据和对话框显示
+  const [imageDataUrl, setImageDataUrl] = useState(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  // 允许的 Feed 类型
   const allowedFeedTypes = ['feed_gps', 'feed_status', 'feed_bio', 'feed_avatar'];
 
-  // Load API config from localStorage on mount
+  // 组件挂载时加载本地 API 配置
   useEffect(() => {
     const savedEndpoint = localStorage.getItem('apiEndpoint') || '';
     const savedApiKey = localStorage.getItem('apiKey') || '';
     const savedModel = localStorage.getItem('model') || '';
     setApiConfig({ endpoint: savedEndpoint, apiKey: savedApiKey, model: savedModel });
     if (!savedEndpoint || !savedApiKey || !savedModel) {
-      setSettingsOpen(true); // Open settings if any config is missing
+      setSettingsOpen(true);
     }
   }, []);
 
-  // Function to get display name for tables
+  // 根据表名获取显示名称
   const getDisplayName = (tableName) => {
     for (const feedType of allowedFeedTypes) {
       if (tableName.includes(feedType)) {
@@ -135,18 +144,16 @@ export default function AnalysisPage() {
     return null;
   };
 
-  // Handle file upload
+  // 手动上传文件处理函数
   const handleUpload = useCallback(async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     setLoading(true);
     setError(null);
     try {
       const formData = new FormData();
       formData.append('file', file);
       const response = await axios.post('http://localhost:5000/upload', formData);
-
       const validTables = response.data.tables_metadata.filter(
         (t) =>
           Array.isArray(t?.columns) &&
@@ -182,14 +189,62 @@ export default function AnalysisPage() {
     }
   }, []);
 
-  // Get merged filtered data
+  /**
+   * 自动加载 VRCX 数据库：
+   * 通过调用主进程 IPC 方法寻找并上传位于 AppData\Roaming\VRCX 的 VRCX.sqlite3
+   */
+  const handleAutoLoadVrcx = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { success, data, message } = await window.electron.ipcRenderer.invoke('auto-load-vrcx-db');
+      if (!success) {
+        setError(message || '自动加载失败');
+        setLoading(false);
+        return;
+      }
+      const validTables = data.tables_metadata.filter(
+        (t) =>
+          Array.isArray(t?.columns) &&
+          Array.isArray(t?.data) &&
+          getDisplayName(t.name) !== null
+      );
+      if (validTables.length === 0) throw new Error('未找到有效表格数据');
+
+      setTables(validTables);
+      setPagination(
+        validTables.reduce(
+          (acc, table) => ({
+            ...acc,
+            [table.name]: { page: 1, rowsPerPage: 10 },
+          }),
+          {}
+        )
+      );
+      setSelectedColumns(
+        validTables.reduce(
+          (acc, table) => ({
+            ...acc,
+            [table.name]: table.columns.reduce((cols, col) => ({ ...cols, [col]: false }), {}),
+          }),
+          {}
+        )
+      );
+    } catch (err) {
+      setError(err.message);
+      setTables([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 合并过滤数据
   const getMergedFilteredData = useCallback(() => {
     const mergedData = {};
     tables.forEach((table) => {
       const tableSelectedColumns = selectedColumns[table.name] || {};
       const visibleColumns = table.columns.filter((col) => tableSelectedColumns[col]);
       if (visibleColumns.length === 0) return;
-
       const tableFilters = filters[table.name] || {};
       const filteredData = table.data.filter((row) =>
         visibleColumns.every((col) => {
@@ -202,20 +257,18 @@ export default function AnalysisPage() {
           );
         })
       );
-
       const selectedData = filteredData.map((row) =>
         visibleColumns.reduce((acc, col) => {
           acc[col] = row[table.columns.indexOf(col)];
           return acc;
         }, {})
       );
-
       mergedData[table.name] = selectedData;
     });
     return mergedData;
   }, [tables, filters, selectedColumns]);
 
-  // Handle chat analysis request
+  // 处理聊天分析请求
   const handleChatAnalysis = async () => {
     try {
       setLoading(true);
@@ -231,7 +284,6 @@ export default function AnalysisPage() {
         ],
         stream: true,
       };
-
       const response = await fetch(apiConfig.endpoint, {
         method: 'POST',
         headers: {
@@ -240,21 +292,16 @@ export default function AnalysisPage() {
         },
         body: JSON.stringify(payload),
       });
-
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let accumulatedResponse = '';
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         const chunk = decoder.decode(value, { stream: true });
         accumulatedResponse += chunk;
-
         const lines = accumulatedResponse.split('\n');
         accumulatedResponse = lines.pop();
-
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = line.slice(6).trim();
@@ -278,25 +325,23 @@ export default function AnalysisPage() {
     }
   };
 
-  // Auto-scroll to bottom of response
+  // 自动滚动到响应区域底部
   useEffect(() => {
     if (responseContainerRef.current) {
       responseContainerRef.current.scrollTop = responseContainerRef.current.scrollHeight;
     }
   }, [apiResponse]);
 
-  // Export AI analysis result as image
+  // 保存分析结果为图片
   const handleSaveAnalysisAsImage = async () => {
     if (!responseContainerRef.current) return;
     try {
       const originalOverflow = responseContainerRef.current.style.overflow;
       const originalHeight = responseContainerRef.current.style.height;
-
       responseContainerRef.current.style.overflow = 'visible';
       const scrollHeight = responseContainerRef.current.scrollHeight;
       const { width } = responseContainerRef.current.getBoundingClientRect();
       responseContainerRef.current.style.height = `${scrollHeight}px`;
-
       const canvas = await html2canvas(responseContainerRef.current, {
         backgroundColor: '#2c2c2c',
         scale: 2,
@@ -306,32 +351,28 @@ export default function AnalysisPage() {
         width,
         height: scrollHeight,
       });
-
       responseContainerRef.current.style.overflow = originalOverflow;
       responseContainerRef.current.style.height = originalHeight;
-
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const newTab = window.open(url, '_blank');
-        if (newTab) {
-          newTab.onload = () => URL.revokeObjectURL(url);
-        } else {
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'analysis_result.png';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }
-      }, 'image/png');
+      const dataUrl = canvas.toDataURL('image/png');
+      setImageDataUrl(dataUrl);
+      setDialogOpen(true);
     } catch (error) {
       console.error('Error saving analysis as image:', error);
     }
   };
 
-  // Render table header with filters
+  // 下载图片
+  const handleDownloadImage = () => {
+    if (!imageDataUrl) return;
+    const link = document.createElement('a');
+    link.href = imageDataUrl;
+    link.download = 'analysis_result.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 渲染表头
   const renderTableHeader = (table, visibleColumns) => (
     <TableHead>
       <TableRow>
@@ -364,7 +405,7 @@ export default function AnalysisPage() {
     </TableHead>
   );
 
-  // Toggle column visibility
+  // 切换列显示与否
   const handleColumnToggle = (tableName, column) => {
     setSelectedColumns((prev) => {
       const tableSelected = prev[tableName] || {};
@@ -380,13 +421,12 @@ export default function AnalysisPage() {
     });
   };
 
-  // Save filtered data as JSON
+  // 保存筛选数据为 JSON 文件
   const saveFilteredDataAsJSON = useCallback(() => {
     tables.forEach((table) => {
       const tableSelectedColumns = selectedColumns[table.name] || {};
       const visibleColumns = table.columns.filter((col) => tableSelectedColumns[col]);
       if (visibleColumns.length === 0) return;
-
       const tableFilters = filters[table.name] || {};
       const filteredData = table.data.filter((row) =>
         visibleColumns.every((col) => {
@@ -399,14 +439,12 @@ export default function AnalysisPage() {
           );
         })
       );
-
       const selectedData = filteredData.map((row) =>
         visibleColumns.reduce((acc, col) => {
           acc[col] = row[table.columns.indexOf(col)];
           return acc;
         }, {})
       );
-
       const jsonData = JSON.stringify(selectedData, null, 2);
       const blob = new Blob([jsonData], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -418,10 +456,26 @@ export default function AnalysisPage() {
     });
   }, [tables, filters, selectedColumns]);
 
-  // Main UI
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
+      {/* 注入自定义滚动条样式 */}
+      <GlobalStyles
+        styles={{
+          '::-webkit-scrollbar': {
+            width: '8px',
+            height: '8px',
+          },
+          '::-webkit-scrollbar-track': {
+            background: '#2c2c2c',
+          },
+          '::-webkit-scrollbar-thumb': {
+            backgroundColor: '#6abf4b',
+            borderRadius: '10px',
+            border: '2px solid #2c2c2c',
+          },
+        }}
+      />
       <Container
         maxWidth="lg"
         sx={{
@@ -431,7 +485,7 @@ export default function AnalysisPage() {
           gap: 2,
         }}
       >
-        {/* Toolbar */}
+        {/* 始终显示工具栏、设置等部分 */}
         <Toolbar
           sx={{
             justifyContent: 'space-between',
@@ -439,32 +493,21 @@ export default function AnalysisPage() {
             px: 0,
           }}
         >
-          <Button
-            variant="contained"
-            component="label"
-            startIcon={<Upload />}
-            sx={{ borderRadius: 2 }}
-          >
+          <Button variant="contained" component="label" startIcon={<Upload />} sx={{ borderRadius: 2 }}>
             上传 SQLite 文件
             <input type="file" hidden accept=".sqlite3" onChange={handleUpload} />
           </Button>
-          <Button
-            variant="contained"
-            onClick={saveFilteredDataAsJSON}
-            sx={{ borderRadius: 2 }}
-          >
+          <Button variant="contained" onClick={handleAutoLoadVrcx} sx={{ borderRadius: 2 }}>
+            自动加载VRCX数据库
+          </Button>
+          <Button variant="contained" onClick={saveFilteredDataAsJSON} sx={{ borderRadius: 2 }}>
             保存筛选数据为 JSON
           </Button>
-          <Button
-            variant="contained"
-            onClick={() => setSettingsOpen(true)}
-            sx={{ borderRadius: 2 }}
-          >
+          <Button variant="contained" onClick={() => setSettingsOpen(true)} sx={{ borderRadius: 2 }}>
             设置
           </Button>
         </Toolbar>
 
-        {/* Settings Modal with initialConfig */}
         <SettingsModal
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
@@ -474,32 +517,23 @@ export default function AnalysisPage() {
             localStorage.setItem('model', config.model);
             setApiConfig(config);
           }}
-          initialConfig={apiConfig} // Pass current apiConfig to modal
+          initialConfig={apiConfig}
         />
 
-        {/* Loading and error indicators */}
-        {loading && (
-          <CircularProgress sx={{ display: 'block', mx: 'auto', my: 2 }} />
-        )}
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
+        {/* 如果没有解析到数据库数据（即 tables 为空），则显示“请上传文件”提示的图表区域 */}
+        {tables.length === 0 && (
+          <Card sx={{ mb: 3, borderRadius: 3 }}>
+            <CardContent>
+              <ReactECharts option={chartOption} style={{ height: '500px' }} />
+            </CardContent>
+          </Card>
         )}
 
-        {/* Chart area */}
-        <Card sx={{ mb: 3, borderRadius: 3 }}>
-          <CardContent>
-            <ReactECharts option={chartOption} style={{ height: '500px' }} />
-          </CardContent>
-        </Card>
-
-        {/* Data tables */}
+        {/* 数据表格区域（如果存在解析后的数据则显示） */}
         {tables.map((table) => {
           const state = pagination[table.name] || { page: 1, rowsPerPage: 10 };
           const tableSelectedColumns = selectedColumns[table.name] || {};
           const visibleColumns = table.columns.filter((col) => tableSelectedColumns[col]);
-
           const tableFilters = filters[table.name] || {};
           const filteredData = table.data.filter((row) =>
             visibleColumns.every((col) => {
@@ -512,10 +546,8 @@ export default function AnalysisPage() {
               );
             })
           );
-
           const startIndex = (state.page - 1) * state.rowsPerPage;
           const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
-
           return (
             <Card key={table.name} sx={{ mb: 3, borderRadius: 3 }}>
               <CardContent>
@@ -563,7 +595,7 @@ export default function AnalysisPage() {
           );
         })}
 
-        {/* Prompt input area */}
+        {/* Prompt 输入区 */}
         <Card sx={{ mb: 3, borderRadius: 3 }}>
           <CardContent>
             <TextField
@@ -603,7 +635,7 @@ export default function AnalysisPage() {
           </CardContent>
         </Card>
 
-        {/* AI analysis result area */}
+        {/* 分析结果区域 */}
         {apiResponse && (
           <Card sx={{ borderRadius: 3, mb: 3 }}>
             <CardContent>
@@ -618,6 +650,8 @@ export default function AnalysisPage() {
                   padding: '16px',
                   backgroundColor: '#2c2c2c',
                   borderRadius: '8px',
+                  maxHeight: '400px',
+                  overflowY: 'auto',
                 }}
               >
                 {apiResponse.split(/(\<think\>[\s\S]*?\<\/think\>)/g).map((part, index) => {
@@ -693,6 +727,20 @@ export default function AnalysisPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* 分析结果图片对话框 */}
+        <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="lg" fullWidth>
+          <DialogTitle>分析结果图片</DialogTitle>
+          <DialogContent>
+            {imageDataUrl && (
+              <img src={imageDataUrl} alt="Analysis Result" style={{ maxWidth: '100%' }} />
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDialogOpen(false)}>关闭</Button>
+            <Button onClick={handleDownloadImage}>下载</Button>
+          </DialogActions>
+        </Dialog>
       </Container>
     </ThemeProvider>
   );

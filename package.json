@@ -1,5 +1,5 @@
 {
-  "name": "sqlite-analyzer",
+  "name": "vrcx-data-analyzer",
   "version": "1.0.0",
   "main": "main.js",
   "devDependencies": {
@@ -9,21 +9,30 @@
     "electron-vite": "^3.0.0"
   },
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "electron:dev": "electron-vite dev",
-    "electron:build": "cd frontend && npm run build && cd .. && electron-builder --win",
-    "electron:start": "electron ."
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "postbuild": "electron-builder",
+    "dist": "npm run build && npm run postbuild"
   },
   "build": {
-    "appId": "com.example.sqlite-analyzer",
+    "appId": "com.oniya.vrcx-data-analyzer",
     "productName": "VRCX Data Analysis",
     "files": [
       "dist/**/*",
+      "frontend/dist/**/*",
       "node_modules/**/*",
-      "app.exe",
-      "package.json"
+      "package.json",
+      "main.js"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/app.exe",
+        "to": "dist/app.exe"
+      },
+      {
+        "from": "frontend/dist",
+        "to": "frontend"
+      }
     ],
     "directories": {
       "buildResources": "assets"
@@ -32,5 +41,8 @@
       "target": "nsis",
       "icon": "assets/icon.ico"
     }
+  },
+  "dependencies": {
+    "axios": "^1.8.2"
   }
 }
