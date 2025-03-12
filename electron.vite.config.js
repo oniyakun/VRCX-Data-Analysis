@@ -10,6 +10,14 @@ export default defineConfig({
       },
     },
   },
+  preload: {
+    build: {
+      outDir: 'frontend/dist',
+      rollupOptions: {
+        input: path.resolve(__dirname, 'preload.js'), // 添加 preload 脚本入口
+      },
+    },
+  },
   renderer: {
     root: 'frontend', // 前端项目根目录
     build: {

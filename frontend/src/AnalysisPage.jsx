@@ -25,6 +25,7 @@ import {
   DialogContent,
   DialogActions,
   GlobalStyles,
+  MenuItem,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { Upload } from '@mui/icons-material';
@@ -93,6 +94,10 @@ export default function AnalysisPage() {
   const [apiResponse, setApiResponse] = useState('');
   const navigate = useNavigate();
 
+  // 预设 prompt 下拉框相关状态
+  const [presetPrompts, setPresetPrompts] = useState([]);
+  const [selectedPreset, setSelectedPreset] = useState('');
+
   // 设置面板状态及 API 配置
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiConfig, setApiConfig] = useState({
@@ -111,7 +116,7 @@ export default function AnalysisPage() {
   // 允许的 Feed 类型
   const allowedFeedTypes = ['feed_gps', 'feed_status', 'feed_bio', 'feed_avatar'];
 
-  // 组件挂载时加载本地 API 配置
+  // 组件挂载时加载 API 配置和预设 prompt
   useEffect(() => {
     const savedEndpoint = localStorage.getItem('apiEndpoint') || '';
     const savedApiKey = localStorage.getItem('apiKey') || '';
@@ -120,6 +125,12 @@ export default function AnalysisPage() {
     if (!savedEndpoint || !savedApiKey || !savedModel) {
       setSettingsOpen(true);
     }
+    // 读取本地配置文件中的预设 prompt
+    window.electron.ipcRenderer.invoke('read-config').then((result) => {
+      if (result.success && result.prompts && result.prompts.length > 0) {
+        setPresetPrompts(result.prompts);
+      }
+    });
   }, []);
 
   // 根据表名获取显示名称
@@ -161,7 +172,6 @@ export default function AnalysisPage() {
           getDisplayName(t.name) !== null
       );
       if (validTables.length === 0) throw new Error('未找到有效表格数据');
-
       setTables(validTables);
       setPagination(
         validTables.reduce(
@@ -210,7 +220,6 @@ export default function AnalysisPage() {
           getDisplayName(t.name) !== null
       );
       if (validTables.length === 0) throw new Error('未找到有效表格数据');
-
       setTables(validTables);
       setPagination(
         validTables.reduce(
@@ -462,13 +471,8 @@ export default function AnalysisPage() {
       {/* 注入自定义滚动条样式 */}
       <GlobalStyles
         styles={{
-          '::-webkit-scrollbar': {
-            width: '8px',
-            height: '8px',
-          },
-          '::-webkit-scrollbar-track': {
-            background: '#2c2c2c',
-          },
+          '::-webkit-scrollbar': { width: '8px', height: '8px' },
+          '::-webkit-scrollbar-track': { background: '#2c2c2c' },
           '::-webkit-scrollbar-thumb': {
             backgroundColor: '#6abf4b',
             borderRadius: '10px',
@@ -476,23 +480,9 @@ export default function AnalysisPage() {
           },
         }}
       />
-      <Container
-        maxWidth="lg"
-        sx={{
-          py: 4,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2,
-        }}
-      >
-        {/* 始终显示工具栏、设置等部分 */}
-        <Toolbar
-          sx={{
-            justifyContent: 'space-between',
-            mb: 3,
-            px: 0,
-          }}
-        >
+      <Container maxWidth="lg" sx={{ py: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {/* 始终显示工具栏及设置部分 */}
+        <Toolbar sx={{ justifyContent: 'space-between', mb: 3, px: 0 }}>
           <Button variant="contained" component="label" startIcon={<Upload />} sx={{ borderRadius: 2 }}>
             上传 SQLite 文件
             <input type="file" hidden accept=".sqlite3" onChange={handleUpload} />
@@ -520,7 +510,7 @@ export default function AnalysisPage() {
           initialConfig={apiConfig}
         />
 
-        {/* 如果没有解析到数据库数据（即 tables 为空），则显示“请上传文件”提示的图表区域 */}
+        {/* 如果没有解析到数据库数据（tables为空），则显示“请上传数据文件”提示的图表区域 */}
         {tables.length === 0 && (
           <Card sx={{ mb: 3, borderRadius: 3 }}>
             <CardContent>
@@ -529,7 +519,7 @@ export default function AnalysisPage() {
           </Card>
         )}
 
-        {/* 数据表格区域（如果存在解析后的数据则显示） */}
+        {/* 当存在解析后的数据时显示数据表格 */}
         {tables.map((table) => {
           const state = pagination[table.name] || { page: 1, rowsPerPage: 10 };
           const tableSelectedColumns = selectedColumns[table.name] || {};
@@ -595,9 +585,27 @@ export default function AnalysisPage() {
           );
         })}
 
-        {/* Prompt 输入区 */}
+        {/* Prompt 输入区及预设 prompt 下拉框 */}
         <Card sx={{ mb: 3, borderRadius: 3 }}>
           <CardContent>
+            {/* 预设 prompt 下拉框 */}
+            <TextField
+              select
+              label="预设 prompt"
+              value={selectedPreset}
+              onChange={(e) => {
+                setSelectedPreset(e.target.value);
+                setPromptInput(e.target.value);
+              }}
+              fullWidth
+              sx={{ mb: 2 }}
+            >
+              {presetPrompts.map((option, index) => (
+                <MenuItem key={index} value={option}>
+                  {option}
+                </MenuItem>
+              ))}
+            </TextField>
             <TextField
               label="输入分析 Prompt"
               multiline
@@ -607,10 +615,7 @@ export default function AnalysisPage() {
               onChange={(e) => setPromptInput(e.target.value)}
               placeholder="请输入您的分析需求..."
               variant="outlined"
-              sx={{
-                mb: 2,
-                '& .MuiOutlinedInput-root': { borderRadius: 2 },
-              }}
+              sx={{ mb: 2, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
             />
             <div style={{ display: 'flex', gap: 16 }}>
               <Button

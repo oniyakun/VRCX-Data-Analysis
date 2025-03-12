@@ -22,7 +22,8 @@
       "frontend/dist/**/*",
       "node_modules/**/*",
       "package.json",
-      "main.js"
+      "main.js",
+      "preload.js"
     ],
     "extraResources": [
       {

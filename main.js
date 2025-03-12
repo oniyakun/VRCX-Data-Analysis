@@ -12,7 +12,7 @@ let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
-    height: 1000,
+    height: 1200,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -20,17 +20,15 @@ function createWindow() {
     },
   });
 
-  // 根据开发或生产环境加载前端页面
   if (process.env.NODE_ENV === 'development') {
-    mainWindow.loadURL('http://localhost:5173'); // Vite 开发服务器默认端口
+    mainWindow.loadURL('http://localhost:5173');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../frontend/index.html')); // 生产环境加载构建后的文件
+    mainWindow.loadFile(path.join(__dirname, '../frontend/index.html'));
   }
 }
 
 app.whenReady().then(() => {
-  // 启动后端服务（打包后的可执行文件）
-  backendProcess = spawn(path.join(__dirname, 'dist/app.exe'));
+  backendProcess = spawn(path.join(process.resourcesPath, 'dist/app.exe'));
 
   backendProcess.stdout.on('data', (data) => {
     console.log(`后端输出: ${data}`);
@@ -41,27 +39,52 @@ app.whenReady().then(() => {
 
   createWindow();
 
-  // 注册 IPC 处理器，用于自动加载 VRCX 数据库
+  // 自动加载 VRCX 数据库
   ipcMain.handle('auto-load-vrcx-db', async () => {
     try {
-      // 拼接 VRCX 默认路径：%USERPROFILE%\AppData\Roaming\VRCX\VRCX.sqlite3
       const vrcxPath = path.join(os.homedir(), 'AppData', 'Roaming', 'VRCX', 'VRCX.sqlite3');
       if (!fs.existsSync(vrcxPath)) {
         return { success: false, message: '未找到VRCX数据库文件，请手动加载' };
       }
-      // 读取文件内容
       const fileBuffer = fs.readFileSync(vrcxPath);
-      // 构造 FormData 并上传给后端
       const formData = new FormData();
       formData.append('file', fileBuffer, {
         filename: 'VRCX.sqlite3',
         contentType: 'application/octet-stream',
       });
-      // 假设后端服务在 http://localhost:5000，并提供 /upload 接口
       const resp = await axios.post('http://localhost:5000/upload', formData, {
         headers: formData.getHeaders(),
       });
       return { success: true, data: resp.data };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  });
+
+  // 读取本地配置文件 config.ini 中的预设 prompt
+  ipcMain.handle('read-config', async () => {
+    try {
+      const configPath = path.join(__dirname, 'config.ini');
+      if (!fs.existsSync(configPath)) {
+        return { success: false, message: '配置文件不存在' };
+      }
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const prompts = [];
+      const lines = content.split(/\r?\n/);
+      let inPrompts = false;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('[')) {
+          inPrompts = trimmed.toLowerCase() === '[prompts]';
+        } else if (inPrompts && trimmed && !trimmed.startsWith(';') && trimmed.includes('=')) {
+          const parts = trimmed.split('=');
+          if (parts.length >= 2) {
+            const value = parts.slice(1).join('=').trim();
+            prompts.push(value);
+          }
+        }
+      }
+      return { success: true, prompts };
     } catch (err) {
       return { success: false, message: err.message };
     }
@@ -76,7 +99,6 @@ app.on('window-all-closed', () => {
 
 app.on('quit', () => {
   if (backendProcess) {
-    // Windows 系统下结束进程
     require('child_process').exec('taskkill /F /IM app.exe');
   }
 });
