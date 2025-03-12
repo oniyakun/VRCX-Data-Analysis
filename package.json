@@ -18,9 +18,6 @@
     "appId": "com.oniya.vrcx-data-analyzer",
     "productName": "VRCX Data Analysis",
     "files": [
-      "dist/**/*",
-      "frontend/dist/**/*",
-      "node_modules/**/*",
       "package.json",
       "main.js",
       "preload.js"

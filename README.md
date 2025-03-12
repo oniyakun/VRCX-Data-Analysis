@@ -79,7 +79,7 @@ Model: gpt-3.5-turbo
 ```bash
 git clone https://github.com/oniyakun/VRCX-Data-Analysis.git
 cd vrcx-analysis/frontend
-npm install
+npm install -i
 cd ..
 pip install -r requirements.txt
 pyinstaller --onefile --noconsole --clean app.py
@@ -91,7 +91,7 @@ npm run dev
 ```bash
 git clone https://github.com/oniyakun/VRCX-Data-Analysis.git
 cd vrcx-analysis/frontend
-npm install
+npm install -i
 cd ..
 pip install -r requirements.txt
 pyinstaller --onefile --noconsole --clean app.py
