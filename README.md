@@ -36,7 +36,7 @@
 - 支持所有符合 OpenAI API 标准的服务。
 - 配置方法：
   - 点击设置，填写 API Endpoint、API Key 和模型名。
-- 获取你的API，可以使用从nuwaapi.com购买的API
+- 获取你的API，可以使用从nuwaapi购买的API
 
 ### 示例：
 
