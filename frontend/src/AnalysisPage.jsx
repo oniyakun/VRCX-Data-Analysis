@@ -39,7 +39,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import html2canvas from 'html2canvas';
 import SettingsModal from './SettingsModal';
 
-// 暗色主题配置
+// Dark theme configuration
 const modernDarkTheme = createTheme({
   palette: {
     mode: 'dark',
@@ -172,6 +172,9 @@ export default function AnalysisPage() {
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false); // New state for validation dialog
+
+  const [filterInputs, setFilterInputs] = useState({}); // New state to track filter inputs
 
   const allowedFeedTypes = ['feed_gps', 'feed_status', 'feed_bio', 'feed_avatar'];
 
@@ -246,6 +249,15 @@ export default function AnalysisPage() {
           {}
         )
       );
+      setFilterInputs(
+        validTables.reduce(
+          (acc, table) => ({
+            ...acc,
+            [table.name]: table.columns.reduce((cols, col) => ({ ...cols, [col]: [] }), {}),
+          }),
+          {}
+        )
+      );
     } catch (err) {
       setError(err.message);
       setTables([]);
@@ -290,6 +302,15 @@ export default function AnalysisPage() {
           {}
         )
       );
+      setFilterInputs(
+        validTables.reduce(
+          (acc, table) => ({
+            ...acc,
+            [table.name]: table.columns.reduce((cols, col) => ({ ...cols, [col]: [] }), {}),
+          }),
+          {}
+        )
+      );
     } catch (err) {
       setError(err.message);
       setTables([]);
@@ -328,6 +349,15 @@ export default function AnalysisPage() {
   }, [tables, filters, selectedColumns]);
 
   const handleChatAnalysis = async () => {
+    // Check if at least one filter input exists and prompt is provided
+    const hasFilterInput = Object.values(filterInputs).some((tableFilters) =>
+      Object.values(tableFilters).some((filter) => filter.length > 0)
+    );
+    if (!hasFilterInput || !promptInput.trim()) {
+      setValidationDialogOpen(true); // Open validation dialog
+      return;
+    }
+
     try {
       setLoading(true);
       setApiResponse('');
@@ -451,16 +481,20 @@ export default function AnalysisPage() {
               options={[]}
               size="small"
               sx={{ width: 180 }}
-              onChange={(_, value) =>
+              onChange={(_, value) => {
                 setFilters((prev) => ({
                   ...prev,
                   [table.name]: { ...prev[table.name], [col]: value },
-                }))
-              }
+                }));
+                setFilterInputs((prev) => ({
+                  ...prev,
+                  [table.name]: { ...prev[table.name], [col]: value },
+                }));
+              }}
               renderInput={(params) => (
                 <TextField
                   {...params}
-                  label="多条件筛选"
+                  label="多条件筛选（回车提交）"
                   variant="outlined"
                   onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
                 />
@@ -483,6 +517,11 @@ export default function AnalysisPage() {
     setFilters((prev) => {
       const tableFilters = prev[tableName] || {};
       const { [column]: _, ...rest } = tableFilters;
+      return { ...prev, [tableName]: rest };
+    });
+    setFilterInputs((prev) => {
+      const tableFilterInputs = prev[tableName] || {};
+      const { [column]: _, ...rest } = tableFilterInputs;
       return { ...prev, [tableName]: rest };
     });
   };
@@ -537,9 +576,9 @@ export default function AnalysisPage() {
             backgroundColor: '#2c2c2c',
           },
           '.analysis-result': {
-            fontFamily: "'Roboto Mono', monospace", // 设置分析结果字体为 Roboto Mono
-            fontSize: '16px',                      // 字体大小
-            lineHeight: '1.8',                     // 行高提升可读性
+            fontFamily: "'Roboto Mono', monospace",
+            fontSize: '16px',
+            lineHeight: '1.8',
           },
         }}
       />
@@ -657,7 +696,7 @@ export default function AnalysisPage() {
           <CardContent>
             <TextField
               select
-              label="预设 prompt"
+              label="预设Prompt"
               value={selectedPreset}
               onChange={(e) => {
                 setSelectedPreset(e.target.value);
@@ -714,7 +753,7 @@ export default function AnalysisPage() {
               </Typography>
               <div
                 ref={responseContainerRef}
-                className="analysis-result" // 应用全局字体样式
+                className="analysis-result"
                 style={{
                   padding: '16px',
                   backgroundColor: '#1e1e1e',
@@ -799,6 +838,7 @@ export default function AnalysisPage() {
           </Card>
         )}
 
+        {/* Dialog for analysis result image */}
         <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="lg" fullWidth>
           <DialogTitle>分析结果图片</DialogTitle>
           <DialogContent>
@@ -810,6 +850,17 @@ export default function AnalysisPage() {
             <Button onClick={() => setDialogOpen(false)}>关闭</Button>
             <Button onClick={handleDownloadImage}>下载</Button>
             <Button onClick={handleCopyToClipboard}>复制图片</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Dialog for validation message */}
+        <Dialog open={validationDialogOpen} onClose={() => setValidationDialogOpen(false)}>
+          <DialogTitle>提示</DialogTitle>
+          <DialogContent>
+            <Typography>请至少在一个多条件筛选框内输入内容，并输入分析prompt。</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setValidationDialogOpen(false)}>确定</Button>
           </DialogActions>
         </Dialog>
       </Container>
