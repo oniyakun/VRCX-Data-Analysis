@@ -39,7 +39,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import html2canvas from 'html2canvas';
 import SettingsModal from './SettingsModal';
 
-// Dark theme configuration
+// 暗色主题配置
 const modernDarkTheme = createTheme({
   palette: {
     mode: 'dark',
@@ -172,9 +172,9 @@ export default function AnalysisPage() {
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [validationDialogOpen, setValidationDialogOpen] = useState(false); // New state for validation dialog
+  const [validationDialogOpen, setValidationDialogOpen] = useState(false);
 
-  const [filterInputs, setFilterInputs] = useState({}); // New state to track filter inputs
+  const [filterInputs, setFilterInputs] = useState({});
 
   const allowedFeedTypes = ['feed_gps', 'feed_status', 'feed_bio', 'feed_avatar'];
 
@@ -193,25 +193,38 @@ export default function AnalysisPage() {
     });
   }, []);
 
-  const getDisplayName = (tableName) => {
+  // 修改 getDisplayName 函数，返回显示名称和提示信息
+  const getDisplayNameAndHint = (tableName) => {
     for (const feedType of allowedFeedTypes) {
       if (tableName.includes(feedType)) {
         const usrPart = tableName.split(feedType)[0].replace(/_$/, '');
         switch (feedType) {
           case 'feed_gps':
-            return `${usrPart}的历史位置信息`;
+            return {
+              displayName: `${usrPart}的历史位置信息`,
+              hint: '正常不建议添加此项进行分析，可以选择 created_at, display_name, world_name 选项，当用户以前修改过名字时，请使用用户的 user_id 筛选',
+            };
           case 'feed_status':
-            return `${usrPart}的历史状态信息`;
+            return {
+              displayName: `${usrPart}的历史状态信息`,
+              hint: '建议选择 created_at, display_name, status, status_description 选项，当用户以前修改过名字时，请使用用户的 user_id 筛选',
+            };
           case 'feed_bio':
-            return `${usrPart}的历史简介信息`;
+            return {
+              displayName: `${usrPart}的历史简介信息`,
+              hint: '建议选择 created_at, display_name, bio 选项，当用户以前修改过名字时，请使用用户的 user_id 筛选',
+            };
           case 'feed_avatar':
-            return `${usrPart}的历史模型信息`;
+            return {
+              displayName: `${usrPart}的历史模型信息`,
+              hint: '不建议添加此项进行分析，没有太大作用',
+            };
           default:
-            return null;
+            return { displayName: null, hint: null };
         }
       }
     }
-    return null;
+    return { displayName: null, hint: null };
   };
 
   const handleUpload = useCallback(async (e) => {
@@ -227,7 +240,7 @@ export default function AnalysisPage() {
         (t) =>
           Array.isArray(t?.columns) &&
           Array.isArray(t?.data) &&
-          getDisplayName(t.name) !== null
+          getDisplayNameAndHint(t.name).displayName !== null
       );
       if (validTables.length === 0) throw new Error('未找到有效表格数据');
       setTables(validTables);
@@ -280,7 +293,7 @@ export default function AnalysisPage() {
         (t) =>
           Array.isArray(t?.columns) &&
           Array.isArray(t?.data) &&
-          getDisplayName(t.name) !== null
+          getDisplayNameAndHint(t.name).displayName !== null
       );
       if (validTables.length === 0) throw new Error('未找到有效表格数据');
       setTables(validTables);
@@ -349,12 +362,11 @@ export default function AnalysisPage() {
   }, [tables, filters, selectedColumns]);
 
   const handleChatAnalysis = async () => {
-    // Check if at least one filter input exists and prompt is provided
     const hasFilterInput = Object.values(filterInputs).some((tableFilters) =>
       Object.values(tableFilters).some((filter) => filter.length > 0)
     );
     if (!hasFilterInput || !promptInput.trim()) {
-      setValidationDialogOpen(true); // Open validation dialog
+      setValidationDialogOpen(true);
       return;
     }
 
@@ -645,11 +657,18 @@ export default function AnalysisPage() {
           );
           const startIndex = (state.page - 1) * state.rowsPerPage;
           const paginatedData = filteredData.slice(startIndex, startIndex + state.rowsPerPage);
+          // 获取表名对应的显示名称和提示信息
+          const { displayName, hint } = getDisplayNameAndHint(table.name);
           return (
             <Card key={table.name} sx={{ mb: 4, borderRadius: 3 }}>
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 3 }}>
-                  {getDisplayName(table.name)}
+                {/* 显示表名 */}
+                <Typography variant="h6" sx={{ mb: 1 }}>
+                  {displayName}
+                </Typography>
+                {/* 显示提示信息 */}
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                  {hint}
                 </Typography>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: 24 }}>
                   {table.columns.map((col) => (
@@ -718,7 +737,7 @@ export default function AnalysisPage() {
               fullWidth
               value={promptInput}
               onChange={(e) => setPromptInput(e.target.value)}
-              placeholder="请输入您的分析需求..."
+              placeholder="请输入您的分析需求，可以根据实际情况修改Prompt"
               variant="outlined"
               sx={{ mb: 3 }}
             />
@@ -838,7 +857,6 @@ export default function AnalysisPage() {
           </Card>
         )}
 
-        {/* Dialog for analysis result image */}
         <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="lg" fullWidth>
           <DialogTitle>分析结果图片</DialogTitle>
           <DialogContent>
@@ -853,11 +871,10 @@ export default function AnalysisPage() {
           </DialogActions>
         </Dialog>
 
-        {/* Dialog for validation message */}
         <Dialog open={validationDialogOpen} onClose={() => setValidationDialogOpen(false)}>
           <DialogTitle>提示</DialogTitle>
           <DialogContent>
-            <Typography>请至少在一个多条件筛选框内输入内容，并输入分析prompt。</Typography>
+            <Typography>请至少在一个多条件筛选框内输入内容，并输入分析Prompt。</Typography>
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setValidationDialogOpen(false)}>确定</Button>
