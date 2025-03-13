@@ -119,6 +119,7 @@ prompt2 = 分析该用户的心理状态特征。
 prompt3 = 提取用户近期的行为特征并总结。
 ```
 
+- config.ini文件位于程序```resources\frontend```目录下，用户可自行按格式添加自定义的Prompt。
 - 用户可自定义多条 Prompt，用于快速选择。
 
 ---
