@@ -86,9 +86,10 @@ Model: deepseek-r1
 
 ```bash
 git clone https://github.com/oniyakun/VRCX-Data-Analysis.git
-cd vrcx-analysis/frontend
+cd frontend
 npm install -i
 cd ..
+npm install -i
 pip install -r requirements.txt
 pyinstaller --noconsole --clean app.py
 npm run dev
@@ -98,9 +99,10 @@ npm run dev
 
 ```bash
 git clone https://github.com/oniyakun/VRCX-Data-Analysis.git
-cd vrcx-analysis/frontend
+cd frontend
 npm install -i
 cd ..
+npm install -i
 pip install -r requirements.txt
 pyinstaller --noconsole --clean app.py
 npm run build
