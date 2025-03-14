@@ -235,7 +235,7 @@ export default function AnalysisPage() {
   // 新增：表名到编号的映射
   const [tableNameToIdMap, setTableNameToIdMap] = useState({});
 
-  const allowedFeedTypes = ['feed_gps', 'feed_bio', 'feed_avatar'];
+  const allowedFeedTypes = ['feed_status', 'feed_gps', 'feed_bio', 'feed_avatar'];
 
   // 初始化时恢复筛选条件
   useEffect(() => {
@@ -323,6 +323,11 @@ export default function AnalysisPage() {
             return {
               displayName: `${usrPart}的历史模型信息`,
               hint: '不建议添加此项进行分析，没有太大作用',
+            };
+          case 'feed_status':
+            return {
+              displayName: `${usrPart}的历史状态信息`,
+              hint: '建议选择 created_at, d isplay_name, status, status_description 选项，当用户以前修改过名字时，请使用用户的 user_id 筛选',
             };
           default:
             return { displayName: null, hint: null };
