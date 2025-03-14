@@ -1,11 +1,10 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
-const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const { app, BrowserWindow, ipcMain, clipboard, nativeImage } = require('electron');
+const { spawn } = require('node:child_process');
+const path = require('node:path');
+const fs = require('node:fs');
+const os = require('node:os');
 const axios = require('axios');
 const FormData = require('form-data');
-const { clipboard, nativeImage } = require('electron');
 
 let backendProcess;
 let mainWindow;
@@ -49,21 +48,158 @@ app.whenReady().then(() => {
   // 自动加载 VRCX 数据库
   ipcMain.handle('auto-load-vrcx-db', async () => {
     try {
+      console.log('开始自动加载VRCX数据库...');
       const vrcxPath = path.join(os.homedir(), 'AppData', 'Roaming', 'VRCX', 'VRCX.sqlite3');
+      console.log('VRCX数据库路径:', vrcxPath);
+      
       if (!fs.existsSync(vrcxPath)) {
+        console.error('未找到VRCX数据库文件');
         return { success: false, message: '未找到VRCX数据库文件，请手动加载' };
       }
+      
+      console.log('读取VRCX数据库文件...');
       const fileBuffer = fs.readFileSync(vrcxPath);
+      console.log('文件大小:', fileBuffer.length, '字节');
+      
       const formData = new FormData();
       formData.append('file', fileBuffer, {
         filename: 'VRCX.sqlite3',
         contentType: 'application/octet-stream',
       });
+      
+      console.log('发送请求到后端...');
       const resp = await axios.post('http://localhost:5000/upload', formData, {
         headers: formData.getHeaders(),
+        maxContentLength: Number.POSITIVE_INFINITY,
+        maxBodyLength: Number.POSITIVE_INFINITY,
+        timeout: 120000 // 增加超时时间到120秒
       });
-      return { success: true, data: resp.data };
+      
+      console.log('后端响应状态:', resp.status);
+      
+      if (!resp.data || !resp.data.tables_metadata) {
+        console.error('后端响应数据格式不正确:', resp.data);
+        return { success: false, message: '后端响应数据格式不正确' };
+      }
+      
+      console.log('表格数量:', resp.data.tables_metadata.length);
+      
+      // 检查每个表格的结构并打印详细信息
+      for (const table of resp.data.tables_metadata) {
+        console.log('表格名称:', table.name);
+        console.log('列数量:', table.columns ? table.columns.length : 'undefined');
+        console.log('数据行数:', table.data ? table.data.length : 'undefined');
+        
+        // 打印前几列的名称，帮助调试
+        if (table.columns && table.columns.length > 0) {
+          console.log('前几列名称:', table.columns.slice(0, Math.min(5, table.columns.length)));
+        }
+        
+        // 打印第一行数据，帮助调试
+        if (table.data && table.data.length > 0) {
+          console.log('第一行数据示例:', table.data[0]);
+        }
+      }
+      
+      // 确保数据格式正确
+      const validatedData = {
+        tables_metadata: resp.data.tables_metadata.map(table => {
+          // 确保name是字符串
+          const name = String(table.name || '');
+          // 确保columns是数组
+          const columns = Array.isArray(table.columns) ? table.columns : [];
+          // 确保data是二维数组
+          let data = [];
+          if (Array.isArray(table.data)) {
+            data = table.data.map(row => {
+              if (Array.isArray(row)) {
+                // 确保所有单元格都是字符串，并且处理null和undefined
+                return row.map(cell => {
+                  if (cell === null || cell === undefined) {
+                    return '';
+                  }
+                  
+                  // 尝试确保字符串编码正确
+                  try {
+                    const cellStr = String(cell);
+                    
+                    // 检查是否包含可能的编码问题
+                    if (cellStr.includes('鈥') || cellStr.includes('銆') || cellStr.includes('鍦')) {
+                      console.log('检测到可能的编码问题:', cellStr);
+                      
+                      // 尝试修复编码问题 - 这只是一个示例，可能需要更复杂的处理
+                      try {
+                        // 如果是UTF-8编码被错误解析为其他编码，可以尝试重新编码
+                        // 这里我们只是记录问题，实际修复可能需要更复杂的逻辑
+                        console.log('原始数据类型:', typeof cell);
+                      } catch (encodeErr) {
+                        console.error('尝试修复编码时出错:', encodeErr);
+                      }
+                    }
+                    
+                    // 尝试解决编码问题 - 将可能的乱码替换为空格
+                    // 这是一个临时解决方案，可能需要更复杂的处理
+                    const cleanedStr = cellStr
+                      .replace(/鈥/g, ' ')
+                      .replace(/銆/g, ' ')
+                      .replace(/鍦/g, ' ')
+                      .replace(/\uFFFD/g, ' '); // 替换Unicode替换字符
+                    
+                    return cleanedStr;
+                  } catch (e) {
+                    console.error('转换单元格到字符串时出错:', e);
+                    return '';
+                  }
+                });
+              }
+              return [];
+            });
+          }
+          
+          // 打印一些示例数据用于调试
+          if (data.length > 0 && columns.length > 0) {
+            console.log(`表格 ${name} 第一行数据示例:`);
+            const sampleRow = data[0];
+            for (let i = 0; i < Math.min(5, columns.length); i++) {
+              if (i < sampleRow.length) {
+                console.log(`  ${columns[i]}: ${sampleRow[i]}`);
+                // 检查编码
+                if (typeof sampleRow[i] === 'string' && sampleRow[i].length > 0) {
+                  console.log(`  ${columns[i]} 的前10个字符编码:`, 
+                    Array.from(sampleRow[i].slice(0, 10)).map(c => c.charCodeAt(0).toString(16)).join(' '));
+                }
+              }
+            }
+          }
+          
+          return { name, columns, data };
+        })
+      };
+      
+      console.log('验证后的表格数量:', validatedData.tables_metadata.length);
+      
+      // 确保数据不会太大，可能导致IPC通信问题
+      const jsonSize = JSON.stringify(validatedData).length;
+      console.log('数据大小:', jsonSize, '字节');
+      
+      if (jsonSize > 50 * 1024 * 1024) { // 如果数据大于50MB
+        console.warn('数据太大，可能导致IPC通信问题，尝试减少数据量');
+        // 减少每个表格的数据行数
+        validatedData.tables_metadata = validatedData.tables_metadata.map(table => {
+          if (table.data.length > 1000) {
+            console.log(`表格 ${table.name} 数据行数过多，减少到1000行`);
+            return {
+              ...table,
+              data: table.data.slice(0, 1000)
+            };
+          }
+          return table;
+        });
+      }
+      
+      return { success: true, data: validatedData };
     } catch (err) {
+      console.error('自动加载VRCX数据库错误:', err);
       return { success: false, message: err.message };
     }
   });
@@ -119,6 +255,6 @@ app.on('window-all-closed', () => {
 
 app.on('quit', () => {
   if (backendProcess) {
-    require('child_process').exec('taskkill /F /IM app.exe');
+    require('node:child_process').exec('taskkill /F /IM app.exe');
   }
 });

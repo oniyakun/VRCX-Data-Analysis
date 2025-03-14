@@ -1,14 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { HashRouter } from 'react-router-dom';
 import AnalysisPage from './AnalysisPage.jsx';
-import {HashRouter, Routes, Route } from 'react-router-dom';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <HashRouter>
-      <Routes>
-        <Route path="/" element={<AnalysisPage />} />
-      </Routes>
+      <AnalysisPage />
     </HashRouter>
   </React.StrictMode>
 );
