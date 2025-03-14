@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/dba04d38-c6bd-4f13-ab0c-d4f0aab1edec)
+![@}S1KZ03EP8MJRUV3JG5XAY](https://github.com/user-attachments/assets/44e9b18f-a857-4c06-8fd4-85ef3aecfa09)
 
 # VRCX 用户数据分析工具
 
