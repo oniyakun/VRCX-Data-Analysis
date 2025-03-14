@@ -192,21 +192,6 @@ app.whenReady().then(() => {
       const jsonSize = JSON.stringify(validatedData).length;
       console.log('数据大小:', jsonSize, '字节');
       
-      if (jsonSize > 50 * 1024 * 1024) { // 如果数据大于50MB
-        console.warn('数据太大，可能导致IPC通信问题，尝试减少数据量');
-        // 减少每个表格的数据行数
-        validatedData.tables_metadata = validatedData.tables_metadata.map(table => {
-          if (table.data.length > 1000) {
-            console.log(`表格 ${table.name} 数据行数过多，减少到1000行`);
-            return {
-              ...table,
-              data: table.data.slice(0, 1000)
-            };
-          }
-          return table;
-        });
-      }
-      
       return { success: true, data: validatedData };
     } catch (err) {
       console.error('自动加载VRCX数据库错误:', err);
