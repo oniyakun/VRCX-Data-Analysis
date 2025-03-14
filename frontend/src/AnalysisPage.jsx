@@ -367,7 +367,7 @@ export default function AnalysisPage() {
       for (const table of validTables) {
         initialSelectedColumns[table.name] = {};
         for (let i = 0; i < table.columns.length; i++) {
-          initialSelectedColumns[table.name][table.columns[i]] = i < 3;
+          initialSelectedColumns[table.name][table.columns[i]] = false;
         }
       }
 
@@ -1318,5 +1318,4 @@ export default function AnalysisPage() {
         </Dialog>
       </Container>
     </ThemeProvider>
-  );
-};
+  )};

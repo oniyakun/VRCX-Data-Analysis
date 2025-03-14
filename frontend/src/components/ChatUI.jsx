@@ -16,6 +16,7 @@ import { Send, Delete, Save, Image, Stop } from '@mui/icons-material';
 import ChatMessage from './ChatMessage';
 import DataAnalysisSelector from './DataAnalysisSelector';
 import { handleStreamResponse, sendMessageToAPI } from '../services/messageService';
+import html2canvas from 'html2canvas';
 
 const ChatUI = ({
   apiConfig,
@@ -140,6 +141,7 @@ const ChatUI = ({
       setLoading(false);
       setIsGenerating(false);
       readerRef.current = null;
+      setIncludeAnalysisData(false); // 每次发送消息后取消勾选
     }
   };
 
@@ -161,10 +163,24 @@ const ChatUI = ({
   };
 
   const handleSaveAsImage = () => {
-    if (!chatContainerRef.current) return;
+    // 获取最后一条AI消息
+    const lastAiMessage = chatHistory.filter(msg => !msg.isUser).pop();
+    if (!lastAiMessage) {
+      alert('没有找到AI回复内容');
+      return;
+    }
+
+    // 获取最后一条消息的DOM元素
+    const lastMessageElement = chatContainerRef.current.lastElementChild.previousElementSibling;
+    if (!lastMessageElement) return;
+
+    // 直接获取Paper元素（实际内容区域）
+    const paperElement = lastMessageElement.querySelector('.MuiPaper-root');
+    if (!paperElement) return;
+
     setIsCapturing(true);
-    html2canvas(chatContainerRef.current, {
-      backgroundColor: '#2c2c2c',
+    html2canvas(paperElement, {
+      backgroundColor: '#2a2a2a',
       scale: 2,
       useCORS: true,
     }).then((canvas) => {
@@ -319,15 +335,26 @@ const ChatUI = ({
               }}
               disabled={loading}
             />
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={isGenerating ? handleStopGeneration : handleSendMessage}
-              disabled={!input.trim() && !isGenerating}
-              sx={{ borderRadius: '12px', height: '56px', minWidth: '56px', p: 0 }}
-            >
-              {isGenerating ? <Stop /> : <Send sx={{ color: input.trim() ? undefined : 'action.disabled' }} />}
-            </Button>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={isGenerating ? handleStopGeneration : handleSendMessage}
+                disabled={!input.trim() && !isGenerating}
+                sx={{
+                  minWidth: 0,
+                  p: 1,
+                  height: '56px',
+                  width: '56px',
+                  borderRadius: '12px',
+                  '& .MuiSvgIcon-root': {
+                    fontSize: '1.5rem',
+                  },
+                }}
+              >
+                {isGenerating ? <Stop /> : <Send />}
+              </Button>
+            </Box>
           </Box>
         </Box>
       </Paper>
