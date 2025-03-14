@@ -35,9 +35,10 @@ import {
   ListItemText,
   Divider,
   CircularProgress,
+  Link,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import { Upload, BarChart, Chat } from '@mui/icons-material';
+import { Upload, BarChart, Chat, GitHub } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
@@ -260,8 +261,20 @@ export default function AnalysisPage() {
       setSettingsOpen(true);
     }
     window.electronAPI.ipcRenderer.invoke('read-config').then((result) => {
-      if (result.success && result.prompts && result.prompts.length > 0) {
-        setPresetPrompts(result.prompts);
+      if (result.success) {
+        try {
+          const configContent = result.data;
+          const prompts = configContent
+            .split('\n')
+            .filter(line => line.trim() && !line.startsWith(';') && !line.startsWith('['))
+            .map(line => line.trim());
+          if (prompts.length > 0) {
+            setPresetPrompts(prompts);
+            console.log('成功加载预设prompts:', prompts);
+          }
+        } catch (error) {
+          console.error('解析配置文件失败:', error);
+        }
       }
     });
   }, []);
@@ -973,7 +986,7 @@ export default function AnalysisPage() {
 
         <Grid container spacing={2} sx={{ height: 'calc(100% - 16px)' }}>
           <Grid item xs={2} sx={{ height: '100%' }}>
-            <Paper sx={{ height: '100%', borderRadius: '12px', backgroundColor: '#1e1e1e' }}>
+            <Paper sx={{ height: '100%', borderRadius: '12px', backgroundColor: '#1e1e1e', position: 'relative', display: 'flex', flexDirection: 'column' }}>
               <List component="nav" aria-label="功能导航">
                 <ListItem disablePadding>
                   <ListItemButton
@@ -1058,6 +1071,42 @@ export default function AnalysisPage() {
                 >
                   设置
                 </Button>
+              </Box>
+              <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 2, textAlign: 'center', color: 'text.secondary'}}>
+                <Link
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    try {
+                      await window.electronAPI.openExternal('https://github.com/oniyakun/VRCX-Data-Analysis');
+                    } catch (error) {
+                      console.error('打开链接失败:', error);
+                    }
+                  }}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'inherit',
+                    '&:hover': { color: '#6abf4b' },
+                    mb: 1,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <GitHub sx={{ mr: 1 }} />
+                  GitHub
+                </Link>
+                <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+                  Made with ♥ by <Link
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.electronAPI.openExternal('https://vrchat.com/home/user/usr_0e9c75fa-ec70-4043-9fca-264c9e0af6ba');
+                    }}
+                    sx={{ color: 'inherit', '&:hover': { color: '#6abf4b' }, cursor: 'pointer' }}
+                  >Oniyakun</Link>
+                </Typography>
+                <Typography variant="caption" display="block" sx={{ opacity: 0.7 }}>
+                  结果仅供娱乐，请勿当真！
+                </Typography>
               </Box>
             </Paper>
           </Grid>
@@ -1360,5 +1409,4 @@ export default function AnalysisPage() {
         </Dialog>
       </Container>
     </ThemeProvider>
-  );
-}
+  )};

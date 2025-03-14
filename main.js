@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, clipboard, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -45,6 +45,16 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // 添加openExternal的IPC处理程序
+  ipcMain.handle('open-external', async (event, url) => {
+    try {
+      await shell.openExternal(url);
+      return { success: true };
+    } catch (error) {
+      console.error('打开外部链接失败:', error);
+      return { success: false, error: error.message };
+    }
+  });
   // 自动加载 VRCX 数据库
   ipcMain.handle('auto-load-vrcx-db', async () => {
     try {

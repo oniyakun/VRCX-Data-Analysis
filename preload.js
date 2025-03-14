@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, shell } = require('electron');
 const { clipboard, nativeImage } = require('electron');
 
 // 创建一个函数来处理控制台消息
@@ -24,7 +24,7 @@ ipcRenderer.on('console-message', handleConsoleMessage);
 contextBridge.exposeInMainWorld('electronAPI', {
   ipcRenderer: {
     invoke: async (channel, ...args) => {
-      const validChannels = ['auto-load-vrcx-db', 'read-config', 'copy-to-clipboard'];
+      const validChannels = ['auto-load-vrcx-db', 'read-config', 'copy-to-clipboard', 'open-external'];
       if (validChannels.includes(channel)) {
         console.log(`调用 IPC 通道: ${channel}`);
         try {
@@ -40,4 +40,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     },
   },
   getDirname: () => __dirname,
+  openExternal: async (url) => {
+    try {
+      const result = await ipcRenderer.invoke('open-external', url);
+      if (!result.success) {
+        throw new Error(result.error || '打开外部链接失败');
+      }
+      return true;
+    } catch (error) {
+      console.error('打开外部链接失败:', error);
+      throw error;
+    }
+  }
 });
