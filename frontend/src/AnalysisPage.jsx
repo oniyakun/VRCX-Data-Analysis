@@ -49,7 +49,7 @@ import html2canvas from 'html2canvas';
 import SettingsModal from './SettingsModal';
 import { handleStreamResponse, sendMessageToAPI } from './services/messageService';
 
-// 暗色主题配置（保持不变）
+// 暗色主题配置
 const modernDarkTheme = createTheme({
   palette: {
     mode: 'dark',
@@ -232,6 +232,9 @@ export default function AnalysisPage() {
   const [validationDialogOpen, setValidationDialogOpen] = useState(false);
   const [filterInputs, setFilterInputs] = useState({});
 
+  // 新增：表名到编号的映射
+  const [tableNameToIdMap, setTableNameToIdMap] = useState({});
+
   const allowedFeedTypes = ['feed_gps', 'feed_bio', 'feed_avatar'];
 
   useEffect(() => {
@@ -255,20 +258,13 @@ export default function AnalysisPage() {
       return { displayName: null, hint: null };
     }
 
-    console.log(`getDisplayNameAndHint: 处理表格 ${tableName}`);
-
     for (const feedType of allowedFeedTypes) {
       if (tableName.includes(feedType)) {
-        console.log(`表格 ${tableName} 匹配类型 ${feedType}`);
         let usrPart = '';
         try {
           const parts = tableName.split(feedType);
           if (parts.length > 0) {
             usrPart = parts[0].replace(/_$/, '');
-            console.log(`提取的用户ID部分: ${usrPart}`);
-          } else {
-            console.error(`无法从表格名称 ${tableName} 中提取用户ID部分`);
-            return { displayName: null, hint: null };
           }
         } catch (err) {
           console.error(`解析表格名称 ${tableName} 出错:`, err);
@@ -297,7 +293,6 @@ export default function AnalysisPage() {
       }
     }
 
-    console.log(`表格 ${tableName} 不匹配任何Feed类型`);
     return { displayName: null, hint: null };
   }, []);
 
@@ -311,22 +306,18 @@ export default function AnalysisPage() {
     setFilters({});
     setFilterInputs({});
     setPagination({});
+    setTableNameToIdMap({}); // 重置映射
 
     try {
       const formData = new FormData();
       formData.append('file', file);
       const response = await axios.post('http://localhost:5000/upload', formData);
 
-      console.log('上传文件成功，获取数据:', response.data);
-
       if (!response.data.tables_metadata || !Array.isArray(response.data.tables_metadata)) {
-        console.error('返回的数据格式不正确:', response.data);
         setError('返回的数据格式不正确');
         setLoading(false);
         return;
       }
-
-      console.log('表格数量:', response.data.tables_metadata.length);
 
       const validatedTables = response.data.tables_metadata.map((table) => ({
         name: String(table.name),
@@ -334,44 +325,33 @@ export default function AnalysisPage() {
         data: Array.isArray(table.data) ? table.data : [],
       }));
 
-      console.log('验证后的表格数量:', validatedTables.length);
-
       const validTables = validatedTables.filter((t) => {
-        const isValid =
+        return (
           t.columns.length > 0 &&
           t.data.length > 0 &&
-          getDisplayNameAndHint(t.name).displayName !== null;
-
-        if (!isValid) {
-          console.log('无效表格:', t.name);
-          if (t.columns.length === 0) console.log('原因: columns为空');
-          if (t.data.length === 0) console.log('原因: data为空');
-          if (getDisplayNameAndHint(t.name).displayName === null)
-            console.log('原因: displayName为null');
-        } else {
-          console.log('有效表格:', t.name, '列数:', t.columns.length, '行数:', t.data.length);
-        }
-
-        return isValid;
+          getDisplayNameAndHint(t.name).displayName !== null
+        );
       });
 
-      console.log('有效表格数量:', validTables.length);
-
       if (validTables.length === 0) {
-        console.error('未找到有效表格数据');
         setError('未找到有效表格数据');
         setLoading(false);
         return;
       }
 
-      console.log('设置表格数据...');
+      // 生成表名到编号的映射
+      const tableMap = {};
+      validTables.forEach((table, index) => {
+        tableMap[table.name] = `表${index + 1}`;
+      });
+      setTableNameToIdMap(tableMap);
+
       setTables(validTables);
 
       const newPagination = {};
       for (const table of validTables) {
         newPagination[table.name] = { page: 1, rowsPerPage: 10 };
       }
-      console.log('设置分页数据...');
       setPagination(newPagination);
 
       const newFilterInputs = {};
@@ -381,7 +361,6 @@ export default function AnalysisPage() {
           newFilterInputs[table.name][col] = [];
         }
       }
-      console.log('设置过滤输入...');
       setFilterInputs(newFilterInputs);
 
       const initialSelectedColumns = {};
@@ -392,18 +371,11 @@ export default function AnalysisPage() {
         }
       }
 
-      console.log('设置选中列...');
-      console.log('初始选中列:', initialSelectedColumns);
-
       setTimeout(() => {
         setSelectedColumns(initialSelectedColumns);
-        console.log('选中列设置完成');
         setLoading(false);
       }, 100);
-
-      console.log('数据加载完成');
     } catch (err) {
-      console.error('上传文件处理错误:', err);
       setError(err.message || '上传文件处理错误');
       setTables([]);
       setLoading(false);
@@ -418,29 +390,24 @@ export default function AnalysisPage() {
     setFilters({});
     setFilterInputs({});
     setPagination({});
+    setTableNameToIdMap({}); // 重置映射
 
     try {
-      console.log('开始自动加载VRCX数据库...');
       const { success, data, message } = await window.electronAPI.ipcRenderer.invoke(
         'auto-load-vrcx-db'
       );
 
       if (!success) {
-        console.error('加载失败:', message);
         setError(message || '自动加载失败');
         setLoading(false);
         return;
       }
 
       if (!data.tables_metadata || !Array.isArray(data.tables_metadata)) {
-        console.error('返回的数据格式不正确');
         setError('返回的数据格式不正确');
         setLoading(false);
         return;
       }
-
-      console.log(`获取到 ${data.tables_metadata.length} 个表格`);
-      console.log('所有表格名称:', data.tables_metadata.map((t) => t.name).join(', '));
 
       const validatedTables = data.tables_metadata.map((table) => ({
         name: String(table.name || ''),
@@ -449,34 +416,26 @@ export default function AnalysisPage() {
       }));
 
       const validTables = validatedTables.filter((table) => {
-        const isValid =
+        return (
           table.columns.length > 0 &&
           table.data.length > 0 &&
-          getDisplayNameAndHint(table.name).displayName !== null;
-
-        if (!isValid) {
-          console.log('无效表格:', table.name);
-          if (table.columns.length === 0) console.log('原因: columns为空');
-          if (table.data.length === 0) console.log('原因: data为空');
-          if (getDisplayNameAndHint(table.name).displayName === null)
-            console.log('原因: displayName为null');
-        } else {
-          console.log('有效表格:', table.name, '列数:', table.columns.length, '行数:', table.data.length);
-        }
-
-        return isValid;
+          getDisplayNameAndHint(table.name).displayName !== null
+        );
       });
 
-      console.log(`过滤后有 ${validTables.length} 个有效表格`);
-
       if (validTables.length === 0) {
-        console.error('未找到有效表格数据');
         setError('未找到有效表格数据');
         setLoading(false);
         return;
       }
 
-      console.log('设置表格数据...');
+      // 生成表名到编号的映射
+      const tableMap = {};
+      validTables.forEach((table, index) => {
+        tableMap[table.name] = `表${index + 1}`;
+      });
+      setTableNameToIdMap(tableMap);
+
       setTables(validTables);
 
       const newPagination = {};
@@ -501,20 +460,16 @@ export default function AnalysisPage() {
           newSelectedColumns[table.name][table.columns[i]] = false;
         }
       }
-      console.log('设置选中列:', JSON.stringify(newSelectedColumns));
 
       await new Promise((resolve) => {
         setTimeout(() => {
           setSelectedColumns(newSelectedColumns);
-          console.log('选中列设置完成');
           resolve();
         }, 500);
       });
 
-      console.log('数据加载完成');
       setLoading(false);
     } catch (err) {
-      console.error('自动加载VRCX数据库错误:', err);
       setError(err.message || '自动加载VRCX数据库错误');
       setLoading(false);
     }
@@ -527,21 +482,21 @@ export default function AnalysisPage() {
       const hasFilters = Object.values(tableFilters).some((filter) => filter.length > 0);
 
       if (hasFilters) {
-        const { displayName } = getDisplayNameAndHint(table.name);
-        const tableName = displayName || table.name;
+        const tableId = tableNameToIdMap[table.name]; // 使用编号代替表名
+        if (!tableId) continue;
 
-        const filteredData = table.data.filter(row => {
+        const filteredData = table.data.filter((row) => {
           return Object.entries(tableFilters).every(([column, values]) => {
             if (!values || values.length === 0) return true;
             const cellValue = row[table.columns.indexOf(column)];
-            return values.some(value => 
+            return values.some((value) =>
               cellValue && cellValue.toString().toLowerCase().includes(value.toLowerCase())
             );
           });
         });
 
         if (filteredData.length > 0) {
-          const selectedData = filteredData.map(row => {
+          const selectedData = filteredData.map((row) => {
             const rowData = {};
             Object.entries(selectedColumns[table.name] || {}).forEach(([column, isSelected]) => {
               if (isSelected) {
@@ -550,7 +505,7 @@ export default function AnalysisPage() {
             });
             return rowData;
           });
-          mergedData[tableName] = selectedData;
+          mergedData[tableId] = selectedData; // 使用编号作为键
         }
       }
     }
@@ -647,7 +602,6 @@ export default function AnalysisPage() {
 
       await handleStreamResponse(reader, decoder, callbacks);
     } catch (err) {
-      console.error('发送消息失败:', err);
       setError(err.message || '发送消息失败');
       setLoading(false);
     }
@@ -663,32 +617,26 @@ export default function AnalysisPage() {
     }
 
     try {
-      // 切换到对话页面
       setActiveTab('chat');
 
-      // 构建消息内容（仅用于发送给 API）
       let messageContent = promptInput;
       const analysisData = getMergedFilteredData();
       if (Object.keys(analysisData).length > 0) {
         messageContent = `${promptInput}\n数据分析页面的筛选数据：\n${JSON.stringify(analysisData, null, 2)}`;
       }
 
-      // 构建完整的对话历史（用于发送给 API）
       const messages = chatHistory.map((msg) => ({
         role: msg.isUser ? 'user' : 'assistant',
         content: msg.content,
       }));
       messages.push({ role: 'user', content: messageContent });
 
-      // 发送消息到 API
       const response = await sendMessageToAPI(messages, apiConfig);
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
 
-      // 直接添加一个空的 AI 响应到历史记录
       setChatHistory((prev) => [...prev, { content: '', thinkContent: '', isUser: false }]);
 
-      // 处理流式响应
       await handleStreamResponse(reader, decoder, {
         onThinkContent: (content) => {
           setChatHistory((prev) => {
@@ -837,9 +785,6 @@ export default function AnalysisPage() {
     }
     const currentValue = newSelectedColumns[tableName][column] || false;
     newSelectedColumns[tableName][column] = !currentValue;
-
-    console.log('新的选中列状态:', newSelectedColumns);
-
     setSelectedColumns(newSelectedColumns);
   };
 
@@ -856,7 +801,6 @@ export default function AnalysisPage() {
       const visibleColumns = table.columns.filter((col) => tableSelectedColumns[col]);
 
       if (visibleColumns.length === 0) {
-        console.log(`表格 ${table.name} 未选中任何列，跳过导出`);
         continue;
       }
 
@@ -1008,7 +952,7 @@ export default function AnalysisPage() {
                     <ListItemIcon>
                       <BarChart sx={{ color: activeTab === 'analysis' ? '#fff' : 'inherit' }} />
                     </ListItemIcon>
-                    <ListItemText primary="数据分析" />
+                    <ListItemText primary="数据筛选" />
                   </ListItemButton>
                 </ListItem>
                 <ListItem disablePadding>
@@ -1030,7 +974,7 @@ export default function AnalysisPage() {
                     <ListItemIcon>
                       <Chat sx={{ color: activeTab === 'chat' ? '#fff' : 'inherit' }} />
                     </ListItemIcon>
-                    <ListItemText primary="对话" />
+                    <ListItemText primary="分析结果" />
                   </ListItemButton>
                 </ListItem>
               </List>
@@ -1089,19 +1033,9 @@ export default function AnalysisPage() {
                   )}
 
                   {tables.map((table) => {
-                    console.log('渲染表格:', table.name);
-                    console.log('表格数据:', table);
-
                     const state = pagination[table.name] || { page: 1, rowsPerPage: 10 };
-                    console.log('分页状态:', state);
-
                     const tableSelectedColumns = selectedColumns[table.name] || {};
-                    console.log('选中列状态:', tableSelectedColumns);
-
                     const visibleColumns = table.columns.filter((col) => tableSelectedColumns[col]);
-
-                    console.log(`表格 ${table.name} 的可见列:`, visibleColumns);
-                    console.log(`表格 ${table.name} 的选中列状态:`, tableSelectedColumns);
 
                     if (visibleColumns.length === 0) {
                       return (
@@ -1150,14 +1084,11 @@ export default function AnalysisPage() {
                       })
                     );
 
-                    console.log(`表格 ${table.name} 的过滤后数据数量:`, filteredData.length);
-
                     const startIndex = (state.page - 1) * state.rowsPerPage;
                     const paginatedData = filteredData.slice(
                       startIndex,
                       startIndex + state.rowsPerPage
                     );
-                    console.log(`表格 ${table.name} 的分页数据:`, paginatedData);
 
                     const { displayName, hint } = getDisplayNameAndHint(table.name);
                     return (
@@ -1215,31 +1146,6 @@ export default function AnalysisPage() {
                                           cellIndex >= 0 && cellIndex < row.length
                                             ? row[cellIndex]
                                             : '';
-
-                                        if (rowIndex === 0 && colIndex === 0) {
-                                          console.log(
-                                            `表格 ${table.name} 第一行第一列数据:`,
-                                            cellValue
-                                          );
-                                          console.log(`数据类型:`, typeof cellValue);
-
-                                          if (
-                                            typeof cellValue === 'string' &&
-                                            (cellValue.includes('鈥') ||
-                                              cellValue.includes('銆') ||
-                                              cellValue.includes('鍦'))
-                                          ) {
-                                            console.log('检测到可能的编码问题');
-                                            if (cellValue.length > 0) {
-                                              console.log(
-                                                '前10个字符的编码:',
-                                                Array.from(cellValue.slice(0, 10))
-                                                  .map((c) => c.charCodeAt(0).toString(16))
-                                                  .join(' ')
-                                              );
-                                            }
-                                          }
-                                        }
 
                                         return (
                                           <TableCell

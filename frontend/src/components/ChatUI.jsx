@@ -12,7 +12,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@mui/material';
-import { Send, Delete, Save, Image } from '@mui/icons-material';
+import { Send, Delete, Save, Image, Stop } from '@mui/icons-material';
 import ChatMessage from './ChatMessage';
 import DataAnalysisSelector from './DataAnalysisSelector';
 import { handleStreamResponse, sendMessageToAPI } from '../services/messageService';
@@ -36,6 +36,8 @@ const ChatUI = ({
   const [imageDataUrl, setImageDataUrl] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const chatContainerRef = useRef(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const readerRef = useRef(null);
 
   // 滚动到最新消息
   function scrollToBottom() {
@@ -47,11 +49,24 @@ const ChatUI = ({
   }, [chatHistory]);
 
   // 发送消息
+  const handleStopGeneration = async () => {
+    if (readerRef.current) {
+      try {
+        await readerRef.current.cancel();
+        setIsGenerating(false);
+        setLoading(false);
+      } catch (error) {
+        console.error('停止生成失败:', error);
+      }
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim()) return;
 
     try {
       setLoading(true);
+      setIsGenerating(true);
 
       // 构建消息内容（仅用于发送给 API）
       let messageContent = input;
@@ -80,6 +95,7 @@ const ChatUI = ({
       // 发送消息到 API
       const response = await sendMessageToAPI(messages, apiConfig);
       const reader = response.body.getReader();
+      readerRef.current = reader;
       const decoder = new TextDecoder();
 
       // 处理流式响应
@@ -122,6 +138,8 @@ const ChatUI = ({
       setChatHistory(prev => [...prev, { content: `错误: ${error.message}`, isUser: false }]);
     } finally {
       setLoading(false);
+      setIsGenerating(false);
+      readerRef.current = null;
     }
   };
 
@@ -304,11 +322,11 @@ const ChatUI = ({
             <Button
               variant="contained"
               color="primary"
-              onClick={handleSendMessage}
-              disabled={!input.trim() || loading}
+              onClick={isGenerating ? handleStopGeneration : handleSendMessage}
+              disabled={!input.trim() && !isGenerating}
               sx={{ borderRadius: '12px', height: '56px', minWidth: '56px', p: 0 }}
             >
-              {loading ? null : !input.trim() ? null : <Send />}
+              {isGenerating ? <Stop /> : <Send sx={{ color: input.trim() ? undefined : 'action.disabled' }} />}
             </Button>
           </Box>
         </Box>
