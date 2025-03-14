@@ -11,6 +11,8 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Alert,
+  Snackbar
 } from '@mui/material';
 import { Send, Delete, Save, Image, Stop } from '@mui/icons-material';
 import ChatMessage from './ChatMessage';
@@ -39,11 +41,22 @@ const ChatUI = ({
   const chatContainerRef = useRef(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const readerRef = useRef(null);
+  const [alertInfo, setAlertInfo] = useState({ open: false, message: '', severity: 'error' });
 
   // 滚动到最新消息
   function scrollToBottom() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }
+
+  // 关闭提示信息
+  const handleCloseAlert = () => {
+    setAlertInfo({ ...alertInfo, open: false });
+  };
+
+  // 显示提示信息
+  const showAlert = (message, severity = 'error') => {
+    setAlertInfo({ open: true, message, severity });
+  };
 
   useEffect(() => {
     scrollToBottom();
@@ -166,7 +179,7 @@ const ChatUI = ({
     // 获取最后一条AI消息
     const lastAiMessage = chatHistory.filter(msg => !msg.isUser).pop();
     if (!lastAiMessage) {
-      alert('没有找到AI回复内容');
+      showAlert('没有找到AI回复内容');
       return;
     }
 
@@ -213,7 +226,7 @@ const ChatUI = ({
       }
     } catch (error) {
       console.error('复制失败:', error);
-      alert('复制失败，请重试');
+      showAlert('复制失败，请重试');
     }
   };
 
@@ -373,6 +386,21 @@ const ChatUI = ({
           </Box>
         </DialogContent>
       </Dialog>
+
+      <Snackbar 
+        open={alertInfo.open} 
+        autoHideDuration={6000} 
+        onClose={handleCloseAlert}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleCloseAlert} 
+          severity={alertInfo.severity} 
+          sx={{ width: '100%' }}
+        >
+          {alertInfo.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 };
