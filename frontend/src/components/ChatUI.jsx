@@ -62,6 +62,18 @@ const ChatUI = ({
     scrollToBottom();
   }, [chatHistory]);
 
+  // 添加消息事件监听器
+  useEffect(() => {
+    const handleMessage = (event) => {
+      if (event.data.type === 'showAlert') {
+        showAlert(event.data.message, event.data.severity);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // 发送消息
   const handleStopGeneration = async () => {
     if (readerRef.current) {
@@ -312,6 +324,7 @@ const ChatUI = ({
                   thinkContent={msg.thinkContent}
                   isUser={msg.isUser}
                   isThinking={msg.isThinking}
+                  showAlert={showAlert}  // 添加这一行
                 />
               )
             ))

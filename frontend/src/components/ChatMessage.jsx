@@ -1,14 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Paper, Typography, Box, Collapse, Button } from '@mui/material';
+import React, { useState, useEffect, useRef } from 'react';
+import { Paper, Typography, Box, Collapse, Button, Dialog, DialogActions, DialogContent, DialogTitle } from '@mui/material';
+import { Image } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import html2canvas from 'html2canvas';
 
-const ChatMessage = ({ message, isUser, thinkContent = '', isThinking = false }) => {
+const ChatMessage = ({ message, isUser, thinkContent = '', isThinking = false, showAlert }) => {
   const [expanded, setExpanded] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [imageDataUrl, setImageDataUrl] = useState(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const messageRef = useRef(null);
   
   // 监听思考状态的变化，只在思考完成时自动折叠
   useEffect(() => {
@@ -22,6 +28,51 @@ const ChatMessage = ({ message, isUser, thinkContent = '', isThinking = false })
     }
   }, [isThinking, thinkContent]);
   
+  const handleSaveAsImage = () => {
+    if (!messageRef.current) return;
+
+    const paperElement = messageRef.current;
+    setIsCapturing(true);
+
+    html2canvas(paperElement, {
+      backgroundColor: '#2a2a2a',
+      scale: 2,
+      useCORS: true,
+    }).then((canvas) => {
+      const dataUrl = canvas.toDataURL('image/png');
+      setImageDataUrl(dataUrl);
+      setDialogOpen(true);
+      setIsCapturing(false);
+    }).catch((error) => {
+      console.error('Error saving message as image:', error);
+      setIsCapturing(false);
+    });
+  };
+
+  const handleDownloadImage = () => {
+    if (!imageDataUrl) return;
+    const link = document.createElement('a');
+    link.href = imageDataUrl;
+    link.download = `message_${new Date().toISOString().slice(0, 10)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCopyToClipboard = async () => {
+    if (!imageDataUrl) return;
+    try {
+      const response = await window.electronAPI.ipcRenderer.invoke('copy-to-clipboard', imageDataUrl);
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      showAlert('复制成功', 'success');  // 使用传入的 showAlert
+    } catch (error) {
+      console.error('复制失败:', error);
+      showAlert('复制失败，请重试');     // 使用传入的 showAlert
+    }
+  };
+
   // 如果是用户消息，直接返回原始消息
   if (isUser) {
     return (
@@ -59,6 +110,7 @@ const ChatMessage = ({ message, isUser, thinkContent = '', isThinking = false })
       }}
     >
       <Paper
+        ref={messageRef}
         elevation={1}
         sx={{
           p: 2,
@@ -168,7 +220,38 @@ const ChatMessage = ({ message, isUser, thinkContent = '', isThinking = false })
             {message}
           </ReactMarkdown>
         )}
+        
+        {/* 添加截图按钮 */}
+        {!isUser && message && (
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="text"
+              size="small"
+              startIcon={<Image />}
+              onClick={handleSaveAsImage}
+              disabled={isCapturing}
+              sx={{ color: 'rgba(255,255,255,0.7)' }}
+            >
+              {isCapturing ? '截图中...' : '保存为图片'}
+            </Button>
+          </Box>
+        )}
       </Paper>
+
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
+        <DialogTitle>保存消息</DialogTitle>
+        <DialogContent>
+          <img src={imageDataUrl} alt="消息截图" style={{ maxWidth: '100%', marginBottom: '16px' }} />
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            <Button onClick={handleCopyToClipboard} variant="contained" color="primary">
+              复制到剪贴板
+            </Button>
+            <Button onClick={handleDownloadImage} variant="contained" color="secondary">
+              下载图片
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 };
