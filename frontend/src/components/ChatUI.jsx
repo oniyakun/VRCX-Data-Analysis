@@ -224,7 +224,7 @@ const ChatUI = ({
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: '70vh',
+          height: '90vh',
           borderRadius: '16px',
           overflow: 'hidden',
           backgroundColor: '#1e1e1e',
@@ -240,7 +240,7 @@ const ChatUI = ({
             alignItems: 'center',
           }}
         >
-          <Typography variant="h6">AI 助手</Typography>
+          <Typography variant="h6">点击右侧按钮保存</Typography>
           <Box>
             <IconButton onClick={handleSaveAsImage} color="primary" title="保存为图片">
               <Image />

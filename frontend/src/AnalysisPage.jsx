@@ -237,11 +237,25 @@ export default function AnalysisPage() {
 
   const allowedFeedTypes = ['feed_gps', 'feed_bio', 'feed_avatar'];
 
+  // 初始化时恢复筛选条件
   useEffect(() => {
     const savedEndpoint = localStorage.getItem('apiEndpoint') || '';
     const savedApiKey = localStorage.getItem('apiKey') || '';
     const savedModel = localStorage.getItem('model') || '';
+    const savedFilterInputs = localStorage.getItem('savedFilterInputs');
+
     setApiConfig({ endpoint: savedEndpoint, apiKey: savedApiKey, model: savedModel });
+
+    if (savedFilterInputs) {
+      try {
+        const parsedFilterInputs = JSON.parse(savedFilterInputs);
+        setFilterInputs(parsedFilterInputs);
+        setFilters(parsedFilterInputs);
+      } catch (error) {
+        console.error('解析保存的筛选条件时出错:', error);
+      }
+    }
+
     if (!savedEndpoint || !savedApiKey || !savedModel) {
       setSettingsOpen(true);
     }
@@ -251,6 +265,29 @@ export default function AnalysisPage() {
       }
     });
   }, []);
+
+  // 监听页面切换，恢复筛选条件
+  useEffect(() => {
+    if (activeTab === 'analysis') {
+      const savedFilterInputs = localStorage.getItem('savedFilterInputs');
+      if (savedFilterInputs) {
+        try {
+          const parsedFilterInputs = JSON.parse(savedFilterInputs);
+          setFilterInputs(parsedFilterInputs);
+          setFilters(parsedFilterInputs);
+        } catch (error) {
+          console.error('解析保存的筛选条件时出错:', error);
+        }
+      }
+    }
+  }, [activeTab]);
+
+  // 监听 filterInputs 变化，保存到本地存储
+  useEffect(() => {
+    if (Object.keys(filterInputs).length > 0) {
+      localStorage.setItem('savedFilterInputs', JSON.stringify(filterInputs));
+    }
+  }, [filterInputs]);
 
   const getDisplayNameAndHint = useCallback((tableName) => {
     if (!tableName || typeof tableName !== 'string') {
@@ -306,7 +343,7 @@ export default function AnalysisPage() {
     setFilters({});
     setFilterInputs({});
     setPagination({});
-    setTableNameToIdMap({}); // 重置映射
+    setTableNameToIdMap({});
 
     try {
       const formData = new FormData();
@@ -339,7 +376,6 @@ export default function AnalysisPage() {
         return;
       }
 
-      // 生成表名到编号的映射
       const tableMap = {};
       validTables.forEach((table, index) => {
         tableMap[table.name] = `表${index + 1}`;
@@ -390,7 +426,7 @@ export default function AnalysisPage() {
     setFilters({});
     setFilterInputs({});
     setPagination({});
-    setTableNameToIdMap({}); // 重置映射
+    setTableNameToIdMap({});
 
     try {
       const { success, data, message } = await window.electronAPI.ipcRenderer.invoke(
@@ -429,7 +465,6 @@ export default function AnalysisPage() {
         return;
       }
 
-      // 生成表名到编号的映射
       const tableMap = {};
       validTables.forEach((table, index) => {
         tableMap[table.name] = `表${index + 1}`;
@@ -482,7 +517,7 @@ export default function AnalysisPage() {
       const hasFilters = Object.values(tableFilters).some((filter) => filter.length > 0);
 
       if (hasFilters) {
-        const tableId = tableNameToIdMap[table.name]; // 使用编号代替表名
+        const tableId = tableNameToIdMap[table.name];
         if (!tableId) continue;
 
         const filteredData = table.data.filter((row) => {
@@ -505,7 +540,7 @@ export default function AnalysisPage() {
             });
             return rowData;
           });
-          mergedData[tableId] = selectedData; // 使用编号作为键
+          mergedData[tableId] = selectedData;
         }
       }
     }
@@ -618,6 +653,7 @@ export default function AnalysisPage() {
 
     try {
       setActiveTab('chat');
+      localStorage.setItem('savedFilterInputs', JSON.stringify(filterInputs));
 
       let messageContent = promptInput;
       const analysisData = getMergedFilteredData();
@@ -753,6 +789,7 @@ export default function AnalysisPage() {
               options={[]}
               size="small"
               sx={{ width: 180 }}
+              value={filterInputs[table.name]?.[col] || []} // 设置初始值
               onChange={(_, value) => {
                 setFilters((prev) => ({
                   ...prev,
@@ -849,7 +886,7 @@ export default function AnalysisPage() {
     if (loading) {
       setChartOption({
         title: {
-          text: '分析中',
+          text: '正在解析数据文件，如果数据过大可能会短暂无响应，请稍等...',
           left: 'center',
           top: 'center',
           textStyle: { color: '#999', fontSize: 16 },
@@ -1318,4 +1355,5 @@ export default function AnalysisPage() {
         </Dialog>
       </Container>
     </ThemeProvider>
-  )};
+  );
+}
