@@ -86,8 +86,13 @@ const ChatUI = ({
       let messageContent = input;
       if (includeAnalysisData) {
         const analysisData = getMergedFilteredData();
-        if (Object.keys(analysisData).length > 0) {
-          messageContent = `${input}\n数据分析页面的筛选数据：\n${JSON.stringify(analysisData, null, 2)}`;
+        if (analysisData && Object.keys(analysisData).length > 0) {
+          messageContent = `${input}\n\n以下是数据分析页面的筛选数据：\n${JSON.stringify(analysisData, null, 2)}`;
+        } else {
+          showAlert('未找到筛选数据，请先在数据分析页面进行数据筛选', 'warning');
+          setLoading(false);
+          setIsGenerating(false);
+          return;
         }
       }
 
