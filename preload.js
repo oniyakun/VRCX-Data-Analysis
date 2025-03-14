@@ -26,7 +26,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     invoke: async (channel, ...args) => {
       const validChannels = ['auto-load-vrcx-db', 'read-config', 'copy-to-clipboard', 'open-external'];
       if (validChannels.includes(channel)) {
-        console.log(`调用 IPC 通道: ${channel}`);
         try {
           const result = await ipcRenderer.invoke(channel, ...args);
           console.log(`IPC 调用结果:`, result);
@@ -50,6 +49,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     } catch (error) {
       console.error('打开外部链接失败:', error);
       throw error;
+    }
+  },
+  clipboard: {
+    writeImage: (dataUrl) => {
+      try {
+        const image = nativeImage.createFromDataURL(dataUrl);
+        clipboard.writeImage(image);
+        return true;
+      } catch (error) {
+        console.error('写入剪贴板失败:', error);
+        throw error;
+      }
     }
   }
 });

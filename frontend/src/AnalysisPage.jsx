@@ -261,21 +261,14 @@ export default function AnalysisPage() {
       setSettingsOpen(true);
     }
     window.electronAPI.ipcRenderer.invoke('read-config').then((result) => {
-      if (result.success) {
-        try {
-          const configContent = result.data;
-          const prompts = configContent
-            .split('\n')
-            .filter(line => line.trim() && !line.startsWith(';') && !line.startsWith('['))
-            .map(line => line.trim());
-          if (prompts.length > 0) {
-            setPresetPrompts(prompts);
-            console.log('成功加载预设prompts:', prompts);
-          }
-        } catch (error) {
-          console.error('解析配置文件失败:', error);
-        }
+      if (result.success && Array.isArray(result.prompts)) {
+        setPresetPrompts(result.prompts);
+        console.log('成功加载预设prompts:', result.prompts);
+      } else {
+        console.error('加载预设prompts失败:', result);
       }
+    }).catch(error => {
+      console.error('调用read-config失败:', error);
     });
   }, []);
 
@@ -806,7 +799,24 @@ export default function AnalysisPage() {
               freeSolo
               options={[]}
               size="small"
-              sx={{ width: 180 }}
+              sx={{
+                width: 180,
+                '& .MuiAutocomplete-listbox': {
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  '&::-webkit-scrollbar': {
+                    width: '8px'
+                  },
+                  '&::-webkit-scrollbar-track': {
+                    background: 'transparent'
+                  },
+                  '&::-webkit-scrollbar-thumb': {
+                    backgroundColor: '#6abf4b',
+                    borderRadius: '10px',
+                    border: '2px solid transparent'
+                  }
+                }
+              }}
               value={filterInputs[table.name]?.[col] || []} // 设置初始值
               onChange={(_, value) => {
                 setFilters((prev) => ({
@@ -1307,9 +1317,33 @@ export default function AnalysisPage() {
                         }}
                         fullWidth
                         sx={{ mb: 3 }}
+                        SelectProps={{
+                          MenuProps: {
+                            PaperProps: {
+                              sx: {
+                                maxWidth: '50%',
+                                width: 'auto',
+                                '& .MuiMenuItem-root': {
+                                  whiteSpace: 'normal',
+                                  wordWrap: 'break-word',
+                                  padding: '8px 16px',
+                                  width: '100%',
+                                  maxHeight: '120px',
+                                  overflowY: 'auto',
+                                  '&:hover': {
+                                    backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }}
                       >
-                        {presetPrompts.map((option) => (
-                          <MenuItem key={option} value={option}>
+                        {presetPrompts.map(option => (
+                          <MenuItem 
+                            key={option} 
+                            value={option}
+                          >
                             {option}
                           </MenuItem>
                         ))}

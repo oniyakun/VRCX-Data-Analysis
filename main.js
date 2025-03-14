@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, clipboard, nativeImage } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -224,34 +224,48 @@ app.whenReady().then(() => {
         return { success: false, message: '配置文件不存在' };
       }
       const content = fs.readFileSync(configPath, 'utf-8');
+      if (!content || content.trim().length === 0) {
+        return { success: false, message: '配置文件为空' };
+      }
+      const lines = content.split('\n');
       const prompts = [];
-      const lines = content.split(/\r?\n/);
       let inPrompts = false;
+      
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed.startsWith('[')) {
-          inPrompts = trimmed.toLowerCase() === '[prompts]';
-        } else if (inPrompts && trimmed && !trimmed.startsWith(';') && trimmed.includes('=')) {
+        if (trimmed === '[prompts]') {
+          inPrompts = true;
+          continue;
+        } else if (inPrompts && trimmed && !trimmed.startsWith(';')) {
           const parts = trimmed.split('=');
           if (parts.length >= 2) {
             const value = parts.slice(1).join('=').trim();
-            prompts.push(value);
+            if (value) {
+              prompts.push(value);
+            }
           }
         }
       }
+      
+      if (prompts.length === 0) {
+        return { success: false, message: '未找到有效的预设提示词' };
+      }
+      console.log('成功读取到预设提示词:', prompts);
       return { success: true, prompts };
     } catch (err) {
+      console.error('读取配置文件错误:', err);
       return { success: false, message: err.message };
     }
   });
 
-  // 处理复制到剪贴板请求
+  // 添加copy-to-clipboard的IPC处理程序
   ipcMain.handle('copy-to-clipboard', async (event, dataUrl) => {
     try {
       const image = nativeImage.createFromDataURL(dataUrl);
       clipboard.writeImage(image);
       return { success: true };
     } catch (error) {
+      console.error('写入剪贴板失败:', error);
       return { success: false, error: error.message };
     }
   });

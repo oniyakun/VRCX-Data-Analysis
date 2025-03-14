@@ -224,6 +224,7 @@ const ChatUI = ({
       if (!response.success) {
         throw new Error(response.error);
       }
+      showAlert('复制成功', 'success');
     } catch (error) {
       console.error('复制失败:', error);
       showAlert('复制失败，请重试');
