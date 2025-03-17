@@ -120,7 +120,8 @@ const ChatUI = ({
       // 构建完整的对话历史（用于发送给 API）
       const messages = chatHistory.map(msg => ({
         role: msg.isUser ? 'user' : 'assistant',
-        content: msg.content
+        content: msg.isUser ? msg.content : 
+          msg.thinkContent ? `${msg.content}\n<think>${msg.thinkContent}</think>` : msg.content
       }));
       messages.push({ role: 'user', content: messageContent });
 
