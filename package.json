@@ -1,6 +1,6 @@
 {
   "name": "vrcx-data-analyzer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "main": "main.js",
   "devDependencies": {
     "concurrently": "^9.1.2",
