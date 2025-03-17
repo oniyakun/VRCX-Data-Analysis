@@ -12,9 +12,10 @@ import {
   DialogContent,
   DialogTitle,
   Alert,
-  Snackbar
+  Snackbar,
+  MenuItem
 } from '@mui/material';
-import { Send, Delete, Save, Image, Stop } from '@mui/icons-material';
+import { Send, Delete, Image, Stop } from '@mui/icons-material';
 import ChatMessage from './ChatMessage';
 import DataAnalysisSelector from './DataAnalysisSelector';
 import { handleStreamResponse, sendMessageToAPI } from '../services/messageService';
@@ -160,6 +161,7 @@ const ChatUI = ({
           });
         },
         onError: (error) => {
+          showAlert(`错误: ${error}`, 'error');
           onError(error);
           setChatHistory(prev => [...prev, { content: `错误: ${error}`, isUser: false }]);
         },
@@ -178,18 +180,6 @@ const ChatUI = ({
   // 清空聊天历史
   const clearChat = () => {
     setChatHistory([]);
-  };
-
-  // 保存聊天历史
-  const saveChat = () => {
-    const chatData = JSON.stringify(chatHistory, null, 2);
-    const blob = new Blob([chatData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat_history_${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleSaveAsImage = () => {
@@ -255,29 +245,27 @@ const ChatUI = ({
         sx={{
           display: 'flex',
           flexDirection: 'column',
-          height: '90vh',
+          height: '92vh',
           borderRadius: '16px',
-          overflow: 'hidden',
+          overflow: 'hidden', // 确保外层容器不显示滚动条
           backgroundColor: '#1e1e1e',
         }}
       >
         {/* 聊天头部 */}
         <Box
           sx={{
-            p: 2,
+            p: '8px 16px',
             backgroundColor: '#2a2a2a',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            minHeight: '48px',
           }}
         >
-          <Typography variant="h6">点击右侧按钮保存</Typography>
+          <Typography variant="h6">聊天</Typography>
           <Box>
             <IconButton onClick={handleSaveAsImage} color="primary" title="保存为图片">
               <Image />
-            </IconButton>
-            <IconButton onClick={saveChat} color="primary" title="保存聊天记录">
-              <Save />
             </IconButton>
             <IconButton onClick={clearChat} color="error" title="清空聊天记录">
               <Delete />
@@ -292,11 +280,13 @@ const ChatUI = ({
           ref={chatContainerRef}
           sx={{
             p: 2,
-            flexGrow: 1,
-            overflowY: 'auto',
+            flex: '1 1 auto',
             backgroundColor: '#2c2c2c',
             display: 'flex',
             flexDirection: 'column',
+            overflow: 'auto', // 只保留一个overflow设置
+            height: 0, // 设置height为0，让flex-grow接管高度计算
+            flexGrow: 1, // 确保填充所有可用空间
           }}
         >
           {chatHistory.length === 0 ? (
@@ -337,18 +327,73 @@ const ChatUI = ({
         {/* 输入区域 */}
         <Box
           sx={{
-            p: 2,
+            p: '12px 16px',
             backgroundColor: '#2a2a2a',
             display: 'flex',
             flexDirection: 'column',
-            gap: 2,
+            gap: 1,
           }}
         >
-          <DataAnalysisSelector
-            includeAnalysisData={includeAnalysisData}
-            setIncludeAnalysisData={setIncludeAnalysisData}
-          />
+          {/* 上部控制区：数据分析选择器和预设提示词选择器并排 */}
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            {/* 数据分析选择器 - 调整为紧凑型 */}
+            <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+              <DataAnalysisSelector
+                includeAnalysisData={includeAnalysisData}
+                setIncludeAnalysisData={setIncludeAnalysisData}
+              />
+            </Box>
+            
+            {/* 预设提示词选择 */}
+            {presetPrompts && presetPrompts.length > 0 && (
+              <Box sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+                <TextField
+                  select
+                  label="预设提示词"
+                  value={selectedPreset}
+                  onChange={(e) => {
+                    setSelectedPreset(e.target.value);
+                    setInput(e.target.value);
+                  }}
+                  fullWidth
+                  size="small"
+                  SelectProps={{
+                    MenuProps: {
+                      PaperProps: {
+                        sx: {
+                          maxWidth: '50%',
+                          width: 'auto',
+                          maxHeight: 'none',
+                          overflowY: 'visible',
+                          '& .MuiMenuItem-root': {
+                            whiteSpace: 'normal',
+                            wordWrap: 'break-word',
+                            padding: '8px 16px',
+                            width: '100%',
+                            // 移除maxHeight和overflowY设置，防止每个菜单项出现滚动条
+                            '&:hover': {
+                              backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }}
+                >
+                  {presetPrompts.map(option => (
+                    <MenuItem 
+                      key={option} 
+                      value={option}
+                    >
+                      {option}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
+            )}
+          </Box>
 
+          {/* 输入框和发送按钮 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TextField
               fullWidth
@@ -358,12 +403,18 @@ const ChatUI = ({
               onChange={(e) => setInput(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
               multiline
-              maxRows={4}
+              maxRows={5}
+              minRows={2}
+              size="small"
               sx={{
                 '& .MuiOutlinedInput-root': {
                   borderRadius: '12px',
                   backgroundColor: '#333',
+                  padding: '8px 12px',
                 },
+                '& .MuiInputBase-inputMultiline': {
+                  lineHeight: '1.5',
+                }
               }}
               disabled={loading}
             />
@@ -375,12 +426,12 @@ const ChatUI = ({
                 disabled={!input.trim() && !isGenerating}
                 sx={{
                   minWidth: 0,
-                  p: 1,
-                  height: '56px',
-                  width: '56px',
-                  borderRadius: '12px',
+                  p: 0.75,
+                  height: '40px',
+                  width: '40px',
+                  borderRadius: '10px',
                   '& .MuiSvgIcon-root': {
-                    fontSize: '1.5rem',
+                    fontSize: '1.3rem',
                   },
                 }}
               >

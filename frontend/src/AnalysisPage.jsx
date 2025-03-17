@@ -36,16 +36,13 @@ import {
   Divider,
   CircularProgress,
   Link,
+  Snackbar,
 } from '@mui/material';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { Upload, BarChart, Chat, GitHub } from '@mui/icons-material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import html2canvas from 'html2canvas';
 import SettingsModal from './SettingsModal';
 import { handleStreamResponse, sendMessageToAPI } from './services/messageService';
@@ -201,6 +198,17 @@ export default function AnalysisPage() {
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [alertInfo, setAlertInfo] = useState({ open: false, message: '', severity: 'error' });
+  
+  // 关闭提示信息
+  const handleCloseAlert = () => {
+    setAlertInfo({ ...alertInfo, open: false });
+  };
+
+  // 显示提示信息
+  const showAlert = (message, severity = 'error') => {
+    setAlertInfo({ open: true, message, severity });
+  };
   const [chatHistory, setChatHistory] = useState([]);
   const [chartOption, setChartOption] = useState({
     title: {
@@ -216,7 +224,8 @@ export default function AnalysisPage() {
   const [apiResponse, setApiResponse] = useState('');
   const navigate = useNavigate();
 
-  const [presetPrompts, setPresetPrompts] = useState([]);
+  const [filterPrompts, setFilterPrompts] = useState([]);
+  const [analysisPrompts, setAnalysisPrompts] = useState([]);
   const [selectedPreset, setSelectedPreset] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [apiConfig, setApiConfig] = useState({
@@ -261,9 +270,15 @@ export default function AnalysisPage() {
       setSettingsOpen(true);
     }
     window.electronAPI.ipcRenderer.invoke('read-config').then((result) => {
-      if (result.success && Array.isArray(result.prompts)) {
-        setPresetPrompts(result.prompts);
-        console.log('成功加载预设prompts:', result.prompts);
+      if (result.success) {
+        if (Array.isArray(result.filterPrompts)) {
+          setFilterPrompts(result.filterPrompts);
+          console.log('成功加载筛选页面预设prompts:', result.filterPrompts);
+        }
+        if (Array.isArray(result.analysisPrompts)) {
+          setAnalysisPrompts(result.analysisPrompts);
+          console.log('成功加载分析结果页面预设prompts:', result.analysisPrompts);
+        }
       } else {
         console.error('加载预设prompts失败:', result);
       }
@@ -349,6 +364,7 @@ export default function AnalysisPage() {
     if (!file) return;
     setLoading(true);
     setError(null);
+    setAlertInfo({ open: false, message: '', severity: 'error' });
     setTables([]);
     setSelectedColumns({});
     setFilters({});
@@ -363,6 +379,7 @@ export default function AnalysisPage() {
 
       if (!response.data.tables_metadata || !Array.isArray(response.data.tables_metadata)) {
         setError('返回的数据格式不正确');
+        showAlert('返回的数据格式不正确', 'error');
         setLoading(false);
         return;
       }
@@ -383,6 +400,7 @@ export default function AnalysisPage() {
 
       if (validTables.length === 0) {
         setError('未找到有效表格数据');
+        showAlert('未找到有效表格数据', 'error');
         setLoading(false);
         return;
       }
@@ -424,6 +442,7 @@ export default function AnalysisPage() {
       }, 100);
     } catch (err) {
       setError(err.message || '上传文件处理错误');
+      showAlert(err.message || '上传文件处理错误', 'error');
       setTables([]);
       setLoading(false);
     }
@@ -432,6 +451,7 @@ export default function AnalysisPage() {
   const handleAutoLoadVrcx = async () => {
     setLoading(true);
     setError(null);
+    setAlertInfo({ open: false, message: '', severity: 'error' });
     setTables([]);
     setSelectedColumns({});
     setFilters({});
@@ -446,12 +466,14 @@ export default function AnalysisPage() {
 
       if (!success) {
         setError(message || '自动加载失败');
+        showAlert(message || '自动加载失败', 'error');
         setLoading(false);
         return;
       }
 
       if (!data.tables_metadata || !Array.isArray(data.tables_metadata)) {
         setError('返回的数据格式不正确');
+        showAlert('返回的数据格式不正确', 'error');
         setLoading(false);
         return;
       }
@@ -472,6 +494,7 @@ export default function AnalysisPage() {
 
       if (validTables.length === 0) {
         setError('未找到有效表格数据');
+        showAlert('未找到有效表格数据', 'error');
         setLoading(false);
         return;
       }
@@ -517,6 +540,7 @@ export default function AnalysisPage() {
       setLoading(false);
     } catch (err) {
       setError(err.message || '自动加载VRCX数据库错误');
+      showAlert(err.message || '自动加载VRCX数据库错误', 'error');
       setLoading(false);
     }
   };
@@ -638,6 +662,7 @@ export default function AnalysisPage() {
         onError: (error) => {
           console.error(error);
           setError(error);
+          showAlert(error.toString(), 'error');
           setLoading(false);
         },
       };
@@ -649,6 +674,7 @@ export default function AnalysisPage() {
       await handleStreamResponse(reader, decoder, callbacks);
     } catch (err) {
       setError(err.message || '发送消息失败');
+      showAlert(err.message || '发送消息失败', 'error');
       setLoading(false);
     }
   };
@@ -856,6 +882,7 @@ export default function AnalysisPage() {
   const saveFilteredDataAsJSON = useCallback(() => {
     if (tables.length === 0) {
       setError('没有可导出的数据');
+      showAlert('没有可导出的数据', 'error');
       return;
     }
 
@@ -907,6 +934,7 @@ export default function AnalysisPage() {
 
     if (exportCount === 0) {
       setError('没有符合条件的数据可导出');
+      showAlert('没有符合条件的数据可导出', 'error');
     }
   }, [tables, filters, selectedColumns]);
 
@@ -988,11 +1016,6 @@ export default function AnalysisPage() {
         }}
       />
       <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
 
         <Grid container spacing={2} sx={{ height: 'calc(100% - 16px)' }}>
           <Grid item xs={2} sx={{ height: '100%' }}>
@@ -1309,7 +1332,7 @@ export default function AnalysisPage() {
                     <CardContent>
                       <TextField
                         select
-                        label="预设Prompt"
+                        label="筛选页面预设Prompt"
                         value={selectedPreset}
                         onChange={(e) => {
                           setSelectedPreset(e.target.value);
@@ -1323,13 +1346,13 @@ export default function AnalysisPage() {
                               sx: {
                                 maxWidth: '50%',
                                 width: 'auto',
+                                maxHeight: 'none',
+                                overflowY: 'visible',
                                 '& .MuiMenuItem-root': {
                                   whiteSpace: 'normal',
                                   wordWrap: 'break-word',
                                   padding: '8px 16px',
                                   width: '100%',
-                                  maxHeight: '120px',
-                                  overflowY: 'auto',
                                   '&:hover': {
                                     backgroundColor: 'rgba(255, 255, 255, 0.08)'
                                   }
@@ -1339,7 +1362,7 @@ export default function AnalysisPage() {
                           }
                         }}
                       >
-                        {presetPrompts.map(option => (
+                        {filterPrompts.map(option => (
                           <MenuItem 
                             key={option} 
                             value={option}
@@ -1387,7 +1410,7 @@ export default function AnalysisPage() {
               {activeTab === 'chat' && (
                 <ChatUI
                   apiConfig={apiConfig}
-                  presetPrompts={presetPrompts}
+                  presetPrompts={analysisPrompts}
                   selectedPreset={selectedPreset}
                   setSelectedPreset={setSelectedPreset}
                   chatHistory={chatHistory}
@@ -1441,6 +1464,21 @@ export default function AnalysisPage() {
             <Button onClick={() => setValidationDialogOpen(false)}>确定</Button>
           </DialogActions>
         </Dialog>
+
+        <Snackbar 
+          open={alertInfo.open} 
+          autoHideDuration={6000} 
+          onClose={handleCloseAlert}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={handleCloseAlert} 
+            severity={alertInfo.severity} 
+            sx={{ width: '100%' }}
+          >
+            {alertInfo.message}
+          </Alert>
+        </Snackbar>
       </Container>
     </ThemeProvider>
   )};

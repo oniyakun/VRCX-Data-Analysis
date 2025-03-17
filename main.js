@@ -213,30 +213,40 @@ app.whenReady().then(() => {
         return { success: false, message: '配置文件为空' };
       }
       const lines = content.split('\n');
-      const prompts = [];
-      let inPrompts = false;
+      const filterPrompts = [];
+      const analysisPrompts = [];
+      let currentSection = '';
       
       for (const line of lines) {
         const trimmed = line.trim();
-        if (trimmed === '[prompts]') {
-          inPrompts = true;
+        if (trimmed === '[filter_prompts]') {
+          currentSection = 'filter';
           continue;
-        } else if (inPrompts && trimmed && !trimmed.startsWith(';')) {
+        } else if (trimmed === '[analysis_prompts]') {
+          currentSection = 'analysis';
+          continue;
+        } else if (trimmed && !trimmed.startsWith(';')) {
           const parts = trimmed.split('=');
           if (parts.length >= 2) {
             const value = parts.slice(1).join('=').trim();
             if (value) {
-              prompts.push(value);
+              if (currentSection === 'filter') {
+                filterPrompts.push(value);
+              } else if (currentSection === 'analysis') {
+                analysisPrompts.push(value);
+              }
             }
           }
         }
       }
       
-      if (prompts.length === 0) {
-        return { success: false, message: '未找到有效的预设提示词' };
-      }
-      console.log('成功读取到预设提示词:', prompts);
-      return { success: true, prompts };
+      console.log('成功读取到筛选页面预设提示词:', filterPrompts);
+      console.log('成功读取到分析结果页面预设提示词:', analysisPrompts);
+      return { 
+        success: true, 
+        filterPrompts: filterPrompts,
+        analysisPrompts: analysisPrompts 
+      };
     } catch (err) {
       console.error('读取配置文件错误:', err);
       return { success: false, message: err.message };
