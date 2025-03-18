@@ -1,4 +1,5 @@
-![@}S1KZ03EP8MJRUV3JG5XAY](https://github.com/user-attachments/assets/44e9b18f-a857-4c06-8fd4-85ef3aecfa09)
+
+![WOHIF1RQPT@5F}VQ`0L)0XL](https://github.com/user-attachments/assets/54a8bebe-55ed-47f3-b054-9839eecce3d5)
 
 # VRCX 用户数据分析工具
 
@@ -133,6 +134,8 @@ prompt3 = 提取用户近期的行为特征并总结。
 - [x] 自由选择分析数据类型
 - [x] 筛选页面增加提示信息，帮助用户选择
 - [x] 一定要筛选框有内容的情况下才能触发分析
+- [x] 单独选择消息保存为图片的功能
+- [x] 分别给数据筛选和分析结果页面增加不同的prompt预设
 
 ### 📊 数据分析功能
 - [x] 支持多表数据组合分析
