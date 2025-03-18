@@ -121,7 +121,7 @@ const ChatUI = ({
       const messages = chatHistory.map(msg => ({
         role: msg.isUser ? 'user' : 'assistant',
         content: msg.isUser ? msg.content : 
-          msg.thinkContent ? `${msg.content}\n<think>${msg.thinkContent}</think>` : msg.content
+          msg.thinkContent ? `<思考内容>${msg.thinkContent}</思考内容>\n${msg.content}` : msg.content
       }));
       messages.push({ role: 'user', content: messageContent });
 
