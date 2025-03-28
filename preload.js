@@ -24,7 +24,7 @@ ipcRenderer.on('console-message', handleConsoleMessage);
 contextBridge.exposeInMainWorld('electronAPI', {
   ipcRenderer: {
     invoke: async (channel, ...args) => {
-      const validChannels = ['auto-load-vrcx-db', 'read-config', 'copy-to-clipboard', 'open-external'];
+      const validChannels = ['auto-load-vrcx-db', 'read-config', 'copy-to-clipboard', 'open-external', 'load-temp-file'];
       if (validChannels.includes(channel)) {
         try {
           const result = await ipcRenderer.invoke(channel, ...args);

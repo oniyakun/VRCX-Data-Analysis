@@ -375,78 +375,135 @@ export default function AnalysisPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const response = await axios.post('http://localhost:5000/upload', formData);
-
-      if (!response.data.tables_metadata || !Array.isArray(response.data.tables_metadata)) {
-        setError('返回的数据格式不正确');
-        showAlert('返回的数据格式不正确', 'error');
-        setLoading(false);
-        return;
-      }
-
-      const validatedTables = response.data.tables_metadata.map((table) => ({
-        name: String(table.name),
-        columns: Array.isArray(table.columns) ? table.columns : [],
-        data: Array.isArray(table.data) ? table.data : [],
-      }));
-
-      const validTables = validatedTables.filter((t) => {
-        return (
-          t.columns.length > 0 &&
-          t.data.length > 0 &&
-          getDisplayNameAndHint(t.name).displayName !== null
-        );
+      
+      // 请求前显示提示
+      showAlert('正在处理数据，这可能需要几分钟时间...', 'info');
+      
+      const response = await axios.post('http://localhost:5000/upload', formData, {
+        maxContentLength: Number.POSITIVE_INFINITY,
+        maxBodyLength: Number.POSITIVE_INFINITY,
+        timeout: 300000, // 增加超时时间到5分钟
+        responseType: 'blob', // 使用blob类型接收大文件响应
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`上传进度: ${percentCompleted}%`);
+        }
       });
 
-      if (validTables.length === 0) {
-        setError('未找到有效表格数据');
-        showAlert('未找到有效表格数据', 'error');
-        setLoading(false);
-        return;
-      }
+      // 处理大型Blob响应
+      try {
+        showAlert('正在解析响应数据...', 'info');
+        
+        // 使用更高效的方式处理大型JSON响应
+        const processResponseData = async (blob) => {
+          try {
+            // 分块读取大型文件
+            const chunks = [];
+            const reader = blob.stream().getReader();
+            const decoder = new TextDecoder();
+            let result = '';
+            
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              result += decoder.decode(value, { stream: !done });
+            }
+            
+            return JSON.parse(result);
+          } catch (error) {
+            console.error('解析响应失败:', error);
+            throw new Error(`解析返回数据失败：${error.message || '未知错误'}`);
+          }
+        };
+        
+        // 处理响应数据
+        const responseData = await processResponseData(response.data);
 
-      const tableMap = {};
-      validTables.forEach((table, index) => {
-        tableMap[table.name] = `表${index + 1}`;
-      });
-      setTableNameToIdMap(tableMap);
-
-      setTables(validTables);
-
-      const newPagination = {};
-      for (const table of validTables) {
-        newPagination[table.name] = { page: 1, rowsPerPage: 10 };
-      }
-      setPagination(newPagination);
-
-      const newFilterInputs = {};
-      for (const table of validTables) {
-        newFilterInputs[table.name] = {};
-        for (const col of table.columns) {
-          newFilterInputs[table.name][col] = [];
+        if (!responseData.tables_metadata || !Array.isArray(responseData.tables_metadata)) {
+          setError('返回的数据格式不正确');
+          showAlert('返回的数据格式不正确', 'error');
+          setLoading(false);
+          return;
         }
-      }
-      setFilterInputs(newFilterInputs);
 
-      const initialSelectedColumns = {};
-      for (const table of validTables) {
-        initialSelectedColumns[table.name] = {};
-        for (let i = 0; i < table.columns.length; i++) {
-          initialSelectedColumns[table.name][table.columns[i]] = false;
+        const validatedTables = responseData.tables_metadata.map((table) => ({
+          name: String(table.name),
+          columns: Array.isArray(table.columns) ? table.columns : [],
+          data: Array.isArray(table.data) ? table.data : [],
+          total_rows: table.total_rows || table.data.length,
+          is_truncated: !!table.is_truncated
+        }));
+
+        const validTables = validatedTables.filter((t) => {
+          return (
+            t.columns.length > 0 &&
+            t.data.length > 0 &&
+            getDisplayNameAndHint(t.name).displayName !== null
+          );
+        });
+
+        if (validTables.length === 0) {
+          setError('未找到有效表格数据');
+          showAlert('未找到有效表格数据', 'error');
+          setLoading(false);
+          return;
         }
-      }
+        
+        // 检查是否有数据被截断
+        const truncatedTables = validTables.filter(t => t.is_truncated);
+        if (truncatedTables.length > 0) {
+          const truncatedTableNames = truncatedTables.map(t => getDisplayNameAndHint(t.name).displayName || t.name).join(', ');
+          showAlert(`注意: 部分表格数据量过大已被截断。受影响的表格: ${truncatedTableNames}`, 'warning');
+        }
 
-      setTimeout(() => {
-        setSelectedColumns(initialSelectedColumns);
+        const tableMap = {};
+        validTables.forEach((table, index) => {
+          tableMap[table.name] = `表${index + 1}`;
+        });
+        setTableNameToIdMap(tableMap);
+
+        setTables(validTables);
+
+        const newPagination = {};
+        for (const table of validTables) {
+          newPagination[table.name] = { page: 1, rowsPerPage: 10 };
+        }
+        setPagination(newPagination);
+
+        const newFilterInputs = {};
+        for (const table of validTables) {
+          newFilterInputs[table.name] = {};
+          for (const col of table.columns) {
+            newFilterInputs[table.name][col] = [];
+          }
+        }
+        setFilterInputs(newFilterInputs);
+
+        const initialSelectedColumns = {};
+        for (const table of validTables) {
+          initialSelectedColumns[table.name] = {};
+          for (let i = 0; i < table.columns.length; i++) {
+            initialSelectedColumns[table.name][table.columns[i]] = false;
+          }
+        }
+
+        setTimeout(() => {
+          setSelectedColumns(initialSelectedColumns);
+          setLoading(false);
+        }, 100);
+      } catch (err) {
+        setError(err.message || '解析响应数据失败');
+        showAlert(err.message || '解析响应数据失败', 'error');
+        setTables([]);
         setLoading(false);
-      }, 100);
+      }
     } catch (err) {
       setError(err.message || '上传文件处理错误');
       showAlert(err.message || '上传文件处理错误', 'error');
       setTables([]);
       setLoading(false);
     }
-  }, [getDisplayNameAndHint]);
+  }, [getDisplayNameAndHint, showAlert]);
 
   const handleAutoLoadVrcx = async () => {
     setLoading(true);
@@ -460,7 +517,10 @@ export default function AnalysisPage() {
     setTableNameToIdMap({});
 
     try {
-      const { success, data, message } = await window.electronAPI.ipcRenderer.invoke(
+      // 显示加载提示
+      showAlert('正在自动加载VRCX数据库，这可能需要几分钟时间...', 'info');
+      
+      const { success, data, message, useFile, filePath, tableCount } = await window.electronAPI.ipcRenderer.invoke(
         'auto-load-vrcx-db'
       );
 
@@ -470,15 +530,41 @@ export default function AnalysisPage() {
         setLoading(false);
         return;
       }
+      
+      // 处理大型数据文件方式传输
+      let tablesData;
+      if (useFile && filePath) {
+        showAlert(`数据较大(${tableCount}个表)，正从临时文件加载...`, 'info');
+        
+        try {
+          // 请求加载文件数据
+          const loadFileResponse = await window.electronAPI.ipcRenderer.invoke(
+            'load-temp-file', filePath
+          );
+          
+          if (!loadFileResponse.success) {
+            throw new Error(loadFileResponse.message || '加载临时文件失败');
+          }
+          
+          tablesData = loadFileResponse.data;
+        } catch (fileErr) {
+          setError(fileErr.message || '处理临时数据文件失败');
+          showAlert(fileErr.message || '处理临时数据文件失败', 'error');
+          setLoading(false);
+          return;
+        }
+      } else {
+        tablesData = data;
+      }
 
-      if (!data.tables_metadata || !Array.isArray(data.tables_metadata)) {
+      if (!tablesData?.tables_metadata || !Array.isArray(tablesData.tables_metadata)) {
         setError('返回的数据格式不正确');
         showAlert('返回的数据格式不正确', 'error');
         setLoading(false);
         return;
       }
 
-      const validatedTables = data.tables_metadata.map((table) => ({
+      const validatedTables = tablesData.tables_metadata.map((table) => ({
         name: String(table.name || ''),
         columns: Array.isArray(table.columns) ? table.columns : [],
         data: Array.isArray(table.data) ? table.data : [],
@@ -560,7 +646,7 @@ export default function AnalysisPage() {
             if (!values || values.length === 0) return true;
             const cellValue = row[table.columns.indexOf(column)];
             return values.some((value) =>
-              cellValue && cellValue.toString().toLowerCase().includes(value.toLowerCase())
+              cellValue?.toString().toLowerCase().includes(value.toLowerCase())
             );
           });
         });
@@ -568,11 +654,13 @@ export default function AnalysisPage() {
         if (filteredData.length > 0) {
           const selectedData = filteredData.map((row) => {
             const rowData = {};
-            Object.entries(selectedColumns[table.name] || {}).forEach(([column, isSelected]) => {
+            const colEntries = Object.entries(selectedColumns[table.name] || {});
+            
+            for (const [column, isSelected] of colEntries) {
               if (isSelected) {
                 rowData[column] = row[table.columns.indexOf(column)];
               }
-            });
+            }
             return rowData;
           });
           mergedData[tableId] = selectedData;
@@ -936,7 +1024,7 @@ export default function AnalysisPage() {
       setError('没有符合条件的数据可导出');
       showAlert('没有符合条件的数据可导出', 'error');
     }
-  }, [tables, filters, selectedColumns]);
+  }, [tables, filters, selectedColumns, showAlert]);
 
   useEffect(() => {
     if (loading) {
@@ -962,7 +1050,7 @@ export default function AnalysisPage() {
         yAxis: { show: false },
       });
     }
-  }, [loading, tables]);
+  }, [loading, tables, showAlert]);
 
   return (
     <ThemeProvider theme={modernDarkTheme}>
@@ -1266,7 +1354,7 @@ export default function AnalysisPage() {
                                     <TableRow key={`row-${table.name}-${rowIndex}`}>
                                       {visibleColumns.map((col, colIndex) => {
                                         const cellIndex = table.columns.indexOf(col);
-                                        let cellValue =
+                                        const cellValue =
                                           cellIndex >= 0 && cellIndex < row.length
                                             ? row[cellIndex]
                                             : '';
