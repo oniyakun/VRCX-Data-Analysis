@@ -518,8 +518,6 @@ export default function AnalysisPage() {
 
     try {
       // 显示加载提示
-      showAlert('正在自动加载VRCX数据库，这可能需要几分钟时间...', 'info');
-      
       const { success, data, message, useFile, filePath, tableCount } = await window.electronAPI.ipcRenderer.invoke(
         'auto-load-vrcx-db'
       );
