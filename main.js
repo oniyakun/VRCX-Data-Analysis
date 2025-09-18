@@ -13,7 +13,13 @@ const tempFiles = [];
 
 // 添加创建临时文件的函数，自动跟踪
 function createTempFile(prefix, suffix = '.json') {
-  const tempFile = path.join(os.tmpdir(), `${prefix}_${Date.now()}${suffix}`);
+  // 使用程序目录下的temp文件夹而不是系统临时目录
+  const tempDir = path.join(__dirname, 'temp');
+  // 确保temp目录存在
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+  }
+  const tempFile = path.join(tempDir, `${prefix}_${Date.now()}${suffix}`);
   tempFiles.push(tempFile);
   return tempFile;
 }
@@ -40,8 +46,8 @@ function safeDeleteFile(filePath) {
 }
 
 // 添加清理所有临时文件的函数
-function cleanupAllTempFiles() {
-  console.log('清理所有临时文件...');
+function cleanupAllTempFiles(forceCleanup = false) {
+  console.log('清理所有临时文件...', forceCleanup ? '(强制清理)' : '(定时清理)');
   const filesToRemove = [...tempFiles]; // 创建副本避免迭代时修改原数组
   
   for (const file of filesToRemove) {
@@ -50,16 +56,37 @@ function cleanupAllTempFiles() {
   
   // 查找并清理额外的临时文件
   try {
-    const tempDir = os.tmpdir();
-    const files = fs.readdirSync(tempDir);
-    for (const file of files) {
-      if (file.startsWith('vrcx_') && (file.endsWith('.json') || file.endsWith('.sqlite3'))) {
-        const fullPath = path.join(tempDir, file);
-        // 检查文件是否超过30分钟
-        const stats = fs.statSync(fullPath);
-        const fileAgeMs = Date.now() - stats.mtimeMs;
-        if (fileAgeMs > 30 * 60 * 1000) { // 30分钟
-          safeDeleteFile(fullPath);
+    const tempDir = path.join(__dirname, 'temp');
+    if (fs.existsSync(tempDir)) {
+      const files = fs.readdirSync(tempDir);
+      for (const file of files) {
+        if (file.startsWith('vrcx_') && (file.endsWith('.json') || file.endsWith('.sqlite3'))) {
+          const fullPath = path.join(tempDir, file);
+          
+          if (forceCleanup) {
+            // 强制清理模式：删除所有临时文件
+            safeDeleteFile(fullPath);
+          } else {
+            // 定时清理模式：只删除超过30分钟的文件
+            const stats = fs.statSync(fullPath);
+            const fileAgeMs = Date.now() - stats.mtimeMs;
+            if (fileAgeMs > 30 * 60 * 1000) { // 30分钟
+              safeDeleteFile(fullPath);
+            }
+          }
+        }
+      }
+      
+      // 如果是强制清理且temp目录为空，则删除temp目录
+      if (forceCleanup) {
+        try {
+          const remainingFiles = fs.readdirSync(tempDir);
+          if (remainingFiles.length === 0) {
+            fs.rmdirSync(tempDir);
+            console.log('已删除空的临时目录:', tempDir);
+          }
+        } catch (err) {
+          console.error('删除临时目录失败:', err);
         }
       }
     }
@@ -100,10 +127,22 @@ app.whenReady().then(() => {
   cleanupInterval = setInterval(cleanupAllTempFiles, CLEANUP_INTERVAL);
   
   // 启动后端进程
-  const backendPath = process.env.NODE_ENV === 'development'
-    ? path.join(__dirname, 'dist/app/app.exe') // 开发环境路径
-    : path.join(process.resourcesPath, 'dist/app.exe'); // 打包后路径
-  backendProcess = spawn(backendPath);
+  if (process.env.NODE_ENV === 'development') {
+    // 开发环境：直接运行Python脚本
+    const pythonPath = path.join(__dirname, '.venv', 'Scripts', 'python.exe');
+    const scriptPath = path.join(__dirname, 'app.py');
+    backendProcess = spawn(pythonPath, [scriptPath], {
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONLEGACYWINDOWSSTDIO: '1'
+      }
+    });
+  } else {
+    // 生产环境：使用编译后的exe
+    const backendPath = path.join(process.resourcesPath, 'dist/app.exe');
+    backendProcess = spawn(backendPath);
+  }
 
   backendProcess.stdout.on('data', (data) => {
     console.log(`后端输出: ${data}`);
@@ -566,13 +605,19 @@ app.on('window-all-closed', () => {
   }
 });
 
+// 在应用即将退出时清理临时文件
+app.on('before-quit', () => {
+  console.log('应用即将退出，开始清理临时文件...');
+  cleanupAllTempFiles(true);
+});
+
 app.on('quit', () => {
   if (backendProcess) {
     require('node:child_process').exec('taskkill /F /IM app.exe');
   }
   
-  // 应用退出时清理所有临时文件
-  cleanupAllTempFiles();
+  // 应用退出时强制清理所有临时文件（备用清理）
+  cleanupAllTempFiles(true);
 });
 
 // 停止定时器
@@ -580,4 +625,8 @@ app.on('will-quit', () => {
   if (cleanupInterval) {
     clearInterval(cleanupInterval);
   }
+  
+  // 最后一次清理机会
+  console.log('应用即将完全退出，最后一次清理临时文件...');
+  cleanupAllTempFiles(true);
 });

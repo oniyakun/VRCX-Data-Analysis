@@ -8,7 +8,7 @@ import logging
 import sys
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB限制
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB限制
 CORS(app)
 
 # 配置日志
